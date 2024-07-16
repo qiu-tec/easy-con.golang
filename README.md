@@ -14,7 +14,7 @@ import (
 )
 func main() {
 	//create a default setting
-	addr := "ws://172.18.200.21:16802/mqtt"
+	addr := "ws://xxxxxx.xxx.xx/mqtt"
 	setting := easyCon.NewSetting("ModuleA", addr, onReq, onStatusChanged)
 	//if has uid and pwd
 	setting.UID = "xxxx"
