@@ -24,6 +24,12 @@ func main() {
 	defer moduleA.Stop()
 
 	setting.Module = "ModuleB"
+	setting.OnNotice = func(notice easyCon.PackNotice) {
+		fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), notice.Content)
+	}
+	setting.OnLog = func(log easyCon.PackLog) {
+		fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), log.Content)
+	}
 	moduleB := easyCon.NewMqttAdapter(setting)
 	defer moduleB.Stop()
 
