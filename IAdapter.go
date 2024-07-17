@@ -11,9 +11,9 @@ import (
 )
 
 type ReqHandler func(pack PackReq) (EResp, any)
-type EventHandler func(EResp, any)
+type NoticeHandler func(PackNotice)
 type StatusChangedHandler func(adapter IAdapter, status EStatus)
-type EventBoundHandler func(string)
+type LogHandler func(PackLog)
 
 // IAdapter 访问器接口
 type IAdapter interface {
@@ -51,6 +51,8 @@ type Setting struct {
 	// ReTry 请求重试次数
 	ReTry         int
 	OnReq         ReqHandler
+	OnNotice      NoticeHandler
+	OnLog         LogHandler
 	StatusChanged StatusChangedHandler
 	UID           string
 	PWD           string

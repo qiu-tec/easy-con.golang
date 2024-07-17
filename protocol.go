@@ -58,6 +58,7 @@ type PackLog struct {
 type PackNotice struct {
 	packBase
 	From    string
+	Route   string
 	Content any
 }
 

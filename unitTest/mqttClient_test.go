@@ -16,52 +16,71 @@ import (
 
 func TestMqttClient(t *testing.T) {
 
-	addr := "ws://172.18.200.21:16802/mqtt"
+	//addr := "ws://172.18.200.21:16802/mqtt"
 	//addr := "wss://uvms.urit.com/mqtt"
+	addr := "ws://127.0.0.1:8080/ws"
 	setting := easyCon.NewSetting("ModuleA", addr, onReq, onStatusChanged)
-	setting.UID = "admin"
-	setting.PWD = "ams@urit2024"
+	//setting.UID = "admin"
+	//setting.PWD = "ams@urit2024"
 	//setting.LogMode = EasyCon.ELogModeNone
+	//setting.LogMode = easyCon.ELogModeConsole
 	setting.LogMode = easyCon.ELogModeUpload
-
 	moduleA := easyCon.NewMqttAdapter(setting)
 	setting.Module = "ModuleB"
+	setting.OnNotice = func(notice easyCon.PackNotice) {
+		fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), notice.Content)
+	}
+	setting.OnLog = func(log easyCon.PackLog) {
+		fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), log.Content)
+	}
+
 	moduleB := easyCon.NewMqttAdapter(setting)
 	defer func() {
 		moduleA.Stop()
 		moduleB.Stop()
 	}()
-	//time.Sleep(time.Second)
-	for i := 0; i < 1; i++ {
-		go func() {
-			res := moduleA.Req("ModuleB", "PING", "I am ModuleA")
-			if res.RespCode != easyCon.ERespSuccess {
-				fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求失败")
-			} else {
-				fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求成功")
-			}
-			res = moduleB.Req("ModuleA", "PING", "I am ModuleB")
-			if res.RespCode != easyCon.ERespSuccess {
-				fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求失败")
-			} else {
-				fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求成功")
-			}
 
-		}()
+	moduleA.Reset()
+	moduleA.Reset()
+	moduleA.Reset()
+	moduleB.Reset()
+	//断线重连测试 需要手动断开服务端连接或网线
+	//time.Sleep(time.Second * 30)
 
-	}
-	for i := 0; i < 1; i++ {
-		go func() {
-			err := moduleA.SendNotice("I am ModuleA")
-			if err != nil {
-				fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "通知发送失败")
-			} else {
-				fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "通知发送成功")
-			}
-		}()
+	for i := 0; i < 5; i++ {
+
+		//go func() {
+		res := moduleA.Req("ModuleB", "PING", "I am ModuleA")
+		if res.RespCode != easyCon.ERespSuccess {
+			fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求失败")
+		} else {
+			fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求成功")
+		}
+		res = moduleB.Req("ModuleA", "PING", "I am ModuleB")
+		if res.RespCode != easyCon.ERespSuccess {
+			fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求失败")
+		} else {
+			fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求成功")
+		}
+
+		//}()
 
 	}
-	time.Sleep(time.Second * 10)
+
+	for i := 0; i < 10; i++ {
+		//go func() {
+		err := moduleA.SendNotice("I am ModuleA Notice")
+		if err != nil {
+			fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "通知发送失败")
+		} else {
+			fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "通知发送成功")
+		}
+		//}()
+
+	}
+	moduleA.Err("日志测试", errors.New("ModuleA log error"))
+	moduleB.Err("日志测试", errors.New("ModuleB log error"))
+	//time.Sleep(time.Second * 10)
 }
 
 func onStatusChanged(adapter easyCon.IAdapter, status easyCon.EStatus) {

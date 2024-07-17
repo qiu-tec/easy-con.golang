@@ -24,6 +24,8 @@ type mqttAdapter struct {
 	respChan chan mqtt.Message
 	stopChan chan struct{}
 	logChan  chan PackLog
+	options  *mqtt.ClientOptions
+	wg       *sync.WaitGroup
 }
 
 func NewMqttAdapter(setting Setting) IAdapter {
@@ -35,6 +37,7 @@ func NewMqttAdapter(setting Setting) IAdapter {
 		respChan: make(chan mqtt.Message, 100),
 		stopChan: make(chan struct{}, 0),
 		logChan:  make(chan PackLog, 100),
+		wg:       &sync.WaitGroup{},
 	}
 	adapter.setting = setting
 	o := mqtt.NewClientOptions().
@@ -45,6 +48,58 @@ func NewMqttAdapter(setting Setting) IAdapter {
 		SetAutoReconnect(true)
 	o.OnConnect = func(client mqtt.Client) {
 		adapter.setting.StatusChanged(adapter, EStatusLinked)
+
+		//订阅请求主题
+		topic := buildReqTopic(adapter.setting.Module)
+		token := adapter.client.Subscribe(topic, 0, func(_ mqtt.Client, message mqtt.Message) {
+			adapter.reqChan <- message
+		})
+		if token.Wait() && token.Error() != nil {
+			adapter.Err("Req Subscribe error", token.Error())
+		}
+		adapter.Debug(topic + " Subscribed")
+		//订阅响应主题
+		topic = buildRespTopic(adapter.setting.Module)
+		token = adapter.client.Subscribe(topic, 0, func(_ mqtt.Client, message mqtt.Message) {
+			adapter.respChan <- message
+		})
+		if token.Wait() && token.Error() != nil {
+			adapter.Err("Resp Subscribe error", token.Error())
+		}
+		adapter.Debug(topic + " Subscribed")
+		//如果通知回调不为空，订阅通知主题
+		if adapter.setting.OnNotice != nil {
+			topic = NoticeTopic
+			token = adapter.client.Subscribe(topic, 0, func(_ mqtt.Client, message mqtt.Message) {
+				notice := &PackNotice{}
+				err := json.Unmarshal(message.Payload(), notice)
+				if err != nil {
+					adapter.Err("Notice Unmarshal error", err)
+				}
+				adapter.setting.OnNotice(*notice)
+			})
+			if token.Wait() && token.Error() != nil {
+				adapter.Err("Notice Subscribe error", token.Error())
+			}
+			adapter.Debug(topic + " Subscribed")
+
+		}
+		//如果日志回调不为空，订阅日志主题
+		if adapter.setting.OnLog != nil {
+			topic = LogTopic
+			token = adapter.client.Subscribe(topic, 0, func(_ mqtt.Client, message mqtt.Message) {
+				log := &PackLog{}
+				err := json.Unmarshal(message.Payload(), log)
+				if err != nil {
+					adapter.Err("Log Unmarshal error", err)
+				}
+				adapter.setting.OnLog(*log)
+			})
+			if token.Wait() && token.Error() != nil {
+				adapter.Err("Log Subscribe error", token.Error())
+			}
+			adapter.Debug(topic + " Subscribed")
+		}
 	}
 	o.OnConnectionLost = func(client mqtt.Client, err error) {
 		adapter.setting.StatusChanged(adapter, EStatusLinkLost)
@@ -52,43 +107,27 @@ func NewMqttAdapter(setting Setting) IAdapter {
 	o.OnReconnecting = func(client mqtt.Client, options *mqtt.ClientOptions) {
 		adapter.setting.StatusChanged(adapter, EStatusConnecting)
 	}
-	go adapter.loop()
-	adapter.client = mqtt.NewClient(o)
-	token := adapter.client.Connect()
-	if token.Wait() && token.Error() != nil {
-		adapter.Err("Connect error", token.Error())
-	}
+	adapter.options = o
 
-	topic := buildReqTopic(adapter.setting.Module)
-	token = adapter.client.Subscribe(topic, 0, func(_ mqtt.Client, message mqtt.Message) {
-		adapter.reqChan <- message
-	})
-	if token.Wait() && token.Error() != nil {
-		adapter.Err("Req Subscribe error", token.Error())
-	}
-	adapter.Debug(topic + " Subscribed")
-
-	topic = buildRespTopic(adapter.setting.Module)
-	token = adapter.client.Subscribe(topic, 0, func(_ mqtt.Client, message mqtt.Message) {
-		adapter.respChan <- message
-	})
-	if token.Wait() && token.Error() != nil {
-		adapter.Err("Resp Subscribe error", token.Error())
-	}
-	adapter.Debug(topic + " Subscribed")
+	adapter.link()
 
 	return adapter
 }
 
 func (adapter *mqttAdapter) Stop() {
+	go func() {
+		//time.Sleep(10)
+		adapter.stopChan <- struct{}{}
+	}()
+	adapter.wg.Wait()
 	adapter.client.Disconnect(10)
 	adapter.setting.StatusChanged(adapter, EStatusStopped)
 }
 
 func (adapter *mqttAdapter) Reset() {
 	adapter.Stop()
-	adapter.client.Connect()
-	adapter.loop()
+	adapter.link()
+
 }
 
 func (adapter *mqttAdapter) Req(module, route string, params any) PackResp {
@@ -225,6 +264,8 @@ func (adapter *mqttAdapter) onReq(message mqtt.Message) {
 }
 
 func (adapter *mqttAdapter) loop() {
+	adapter.wg.Add(1)
+	defer adapter.wg.Done()
 	for {
 		select {
 		case msg := <-adapter.reqChan:
@@ -239,18 +280,28 @@ func (adapter *mqttAdapter) loop() {
 				js, err := json.Marshal(pack)
 				if err != nil {
 					fmt.Printf("[%s][%s][Error]: %s\r\n", time.Now().Format("2006-01-02 15:04:05.000"), adapter.setting.Module, err.Error())
-					return
+					break
 				}
 				token := adapter.client.Publish(LogTopic, 0, false, js)
 				if token.Wait() && token.Error() != nil {
 					adapter.Err("Log send error", token.Error())
-					return
+					break
 				}
 			}
 		case <-adapter.stopChan:
-			break
+			return
 		}
 	}
+}
+
+func (adapter *mqttAdapter) link() {
+	go adapter.loop()
+	adapter.client = mqtt.NewClient(adapter.options)
+	token := adapter.client.Connect()
+	if token.Wait() && token.Error() != nil {
+		adapter.Err("Connect error", token.Error())
+	}
+
 }
 
 func printLog(log PackLog) {
