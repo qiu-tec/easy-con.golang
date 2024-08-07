@@ -34,7 +34,7 @@ func main() {
 	defer moduleB.Stop()
 
 	moduleA.Req("ModuleB", "hello", nil)
-	err :=moduleA.SendNotice("hello world")
+	err :=moduleA.SendNotice("debug","hello world")
 	if err != nil {
 		fmt.Println(err.Error())
 	}
