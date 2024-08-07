@@ -150,8 +150,8 @@ func (adapter *mqttAdapter) Req(module, route string, params any) PackResp {
 	p.Content = nil
 	return p
 }
-func (adapter *mqttAdapter) SendNotice(content any) error {
-	pack := newNoticePack(adapter.setting.Module, content)
+func (adapter *mqttAdapter) SendNotice(route string, content any) error {
+	pack := newNoticePack(adapter.setting.Module, route, content)
 	js, err := json.Marshal(pack)
 	if err != nil {
 		adapter.Err("Notice marshal error", err)

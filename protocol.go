@@ -200,13 +200,14 @@ func newRespPack(req PackReq, code EResp, content any) PackResp {
 	return pack
 }
 
-func newNoticePack(module string, content any) PackNotice {
+func newNoticePack(module, route string, content any) PackNotice {
 	return PackNotice{
 		packBase: packBase{
 			PType: EPTypeNotice,
 			Id:    getNoticeId(),
 		},
 		From:    module,
+		Route:   route,
 		Content: content,
 	}
 }
