@@ -70,7 +70,7 @@ func TestMqttClient(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		//go func() {
-		err := moduleA.SendNotice("I am ModuleA Notice")
+		err := moduleA.SendNotice("debugLog", "I am ModuleA Notice")
 		if err != nil {
 			fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "通知发送失败")
 		} else {
