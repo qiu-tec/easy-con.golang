@@ -8,6 +8,7 @@ package easyCon
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"sync"
@@ -26,6 +27,7 @@ type mqttAdapter struct {
 	logChan  chan PackLog
 	options  *mqtt.ClientOptions
 	wg       *sync.WaitGroup
+	isLinked bool
 }
 
 func NewMqttAdapter(setting Setting) IAdapter {
@@ -47,6 +49,7 @@ func NewMqttAdapter(setting Setting) IAdapter {
 		SetPassword(setting.PWD).
 		SetAutoReconnect(true)
 	o.OnConnect = func(client mqtt.Client) {
+		adapter.isLinked = true
 		adapter.setting.StatusChanged(adapter, EStatusLinked)
 
 		//订阅请求主题
@@ -102,6 +105,7 @@ func NewMqttAdapter(setting Setting) IAdapter {
 		}
 	}
 	o.OnConnectionLost = func(client mqtt.Client, err error) {
+		adapter.isLinked = false
 		adapter.setting.StatusChanged(adapter, EStatusLinkLost)
 	}
 	o.OnReconnecting = func(client mqtt.Client, options *mqtt.ClientOptions) {
@@ -131,6 +135,11 @@ func (adapter *mqttAdapter) Reset() {
 }
 
 func (adapter *mqttAdapter) Req(module, route string, params any) PackResp {
+	if !adapter.isLinked {
+		return PackResp{
+			RespCode: ERespUnLinked,
+		}
+	}
 	pack := newReqPack(adapter.setting.Module, module, route, params)
 	for retry := adapter.setting.ReTry; retry > 0; retry-- {
 		resp := adapter.req(pack)
@@ -151,6 +160,9 @@ func (adapter *mqttAdapter) Req(module, route string, params any) PackResp {
 	return p
 }
 func (adapter *mqttAdapter) SendNotice(route string, content any) error {
+	if !adapter.isLinked {
+		return errors.New("adapter is not linked")
+	}
 	pack := newNoticePack(adapter.setting.Module, route, content)
 	js, err := json.Marshal(pack)
 	if err != nil {
@@ -277,6 +289,10 @@ func (adapter *mqttAdapter) loop() {
 				printLog(pack)
 			}
 			if adapter.setting.LogMode == ELogModeUpload || adapter.setting.LogMode == ELogModeAll {
+
+				if adapter.isLinked == false { //未连接 就不再继续尝试发包了
+					break
+				}
 				js, err := json.Marshal(pack)
 				if err != nil {
 					fmt.Printf("[%s][%s][Error]: %s\r\n", time.Now().Format("2006-01-02 15:04:05.000"), adapter.setting.Module, err.Error())
