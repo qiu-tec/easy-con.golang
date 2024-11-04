@@ -313,9 +313,10 @@ func (adapter *mqttAdapter) loop() {
 func (adapter *mqttAdapter) link() {
 	go adapter.loop()
 	adapter.client = mqtt.NewClient(adapter.options)
+ReLink:
 	token := adapter.client.Connect()
 	if token.Wait() && token.Error() != nil {
-		adapter.Err("Connect error", token.Error())
+		goto ReLink
 	}
 
 }

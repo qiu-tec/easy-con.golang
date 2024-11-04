@@ -19,7 +19,7 @@ func TestMqttClient(t *testing.T) {
 	//addr :="mqtt://222.216.211.109:16803"
 	//addr := "ws://222.216.211.109:16802/mqtt"
 	//addr := "wss://uvms.urit.com/mqtt"
-	addr := "ws://127.0.0.1:8080/ws"
+	addr := "ws://127.0.0.1:38083/ws"
 	setting := easyCon.NewSetting("ModuleA", addr, onReq, onStatusChanged)
 	setting.UID = "admin"
 	setting.PWD = "ams@urit2024"
@@ -68,7 +68,7 @@ func TestMqttClient(t *testing.T) {
 
 	}
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 100; i++ {
 		//go func() {
 		err := moduleA.SendNotice("debugLog", "I am ModuleA Notice")
 		if err != nil {
@@ -77,6 +77,7 @@ func TestMqttClient(t *testing.T) {
 			fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "通知发送成功")
 		}
 		//}()
+		time.Sleep(time.Second)
 
 	}
 	moduleA.Err("日志测试", errors.New("ModuleA log error"))
