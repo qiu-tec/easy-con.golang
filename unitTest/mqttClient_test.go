@@ -16,9 +16,6 @@ import (
 
 func TestMqttClient(t *testing.T) {
 
-	//addr :="mqtt://222.216.211.109:16803"
-	//addr := "ws://222.216.211.109:16802/mqtt"
-	//addr := "wss://uvms.urit.com/mqtt"
 	addr := "ws://127.0.0.1:38083/ws"
 	setting := easyCon.NewSetting("ModuleA", addr, onReq, onStatusChanged)
 	setting.UID = "admin"
