@@ -281,29 +281,11 @@ func (adapter *mqttAdapter) loop() {
 	for {
 		select {
 		case msg := <-adapter.reqChan:
-			adapter.onReq(msg)
+			go adapter.onReq(msg)
 		case msg := <-adapter.respChan:
-			adapter.onResp(msg)
+			go adapter.onResp(msg)
 		case pack := <-adapter.logChan:
-			if adapter.setting.LogMode == ELogModeConsole || adapter.setting.LogMode == ELogModeAll {
-				printLog(pack)
-			}
-			if adapter.setting.LogMode == ELogModeUpload || adapter.setting.LogMode == ELogModeAll {
-
-				if adapter.isLinked == false { //未连接 就不再继续尝试发包了
-					break
-				}
-				js, err := json.Marshal(pack)
-				if err != nil {
-					fmt.Printf("[%s][%s][Error]: %s\r\n", time.Now().Format("2006-01-02 15:04:05.000"), adapter.setting.Module, err.Error())
-					break
-				}
-				token := adapter.client.Publish(LogTopic, 0, false, js)
-				if token.Wait() && token.Error() != nil {
-					adapter.Err("Log send error", token.Error())
-					break
-				}
-			}
+			go adapter.sendLog(pack)
 		case <-adapter.stopChan:
 			return
 		}
@@ -319,6 +301,28 @@ ReLink:
 		goto ReLink
 	}
 
+}
+
+func (adapter *mqttAdapter) sendLog(pack PackLog) {
+	if adapter.setting.LogMode == ELogModeConsole || adapter.setting.LogMode == ELogModeAll {
+		printLog(pack)
+	}
+	if adapter.setting.LogMode == ELogModeUpload || adapter.setting.LogMode == ELogModeAll {
+
+		if adapter.isLinked == false { //未连接 就不再继续尝试发包了
+			return
+		}
+		js, err := json.Marshal(pack)
+		if err != nil {
+			fmt.Printf("[%s][%s][Error]: %s\r\n", time.Now().Format("2006-01-02 15:04:05.000"), adapter.setting.Module, err.Error())
+			return
+		}
+		token := adapter.client.Publish(LogTopic, 0, false, js)
+		if token.Wait() && token.Error() != nil {
+			adapter.Err("Log send error", token.Error())
+			return
+		}
+	}
 }
 
 func printLog(log PackLog) {
