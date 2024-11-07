@@ -21,8 +21,9 @@ const (
 	EProtocolHTTP EProtocol = "HTTP"
 )
 const (
-	NoticeTopic string = "Notice"
-	LogTopic    string = "Log"
+	NoticeTopic       string = "Notice"
+	RetainNoticeTopic string = "RetainNotice"
+	LogTopic          string = "Log"
 )
 
 type packBase struct {

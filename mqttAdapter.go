@@ -176,7 +176,11 @@ func (adapter *mqttAdapter) sendNotice(route string, isRetain bool, content any)
 		adapter.Err("Notice marshal error", err)
 		return err
 	}
-	token := adapter.client.Publish(NoticeTopic, 0, isRetain, js)
+	topic := NoticeTopic
+	if isRetain {
+		topic = RetainNoticeTopic
+	}
+	token := adapter.client.Publish(topic, 0, isRetain, js)
 	if token.Wait() && token.Error() != nil {
 		adapter.Err("Notice send error", token.Error())
 		return err
