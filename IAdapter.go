@@ -27,7 +27,11 @@ type IAdapter interface {
 	// Req 请求
 	Req(module, route string, params any) PackResp
 
+	// SendNotice 发送通知
 	SendNotice(route string, content any) error
+
+	// SendRetainNotice 发送保留通知
+	SendRetainNotice(route string, content any) error
 	iLogger
 }
 type iLogger interface {

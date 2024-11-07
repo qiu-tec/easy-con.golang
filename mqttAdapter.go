@@ -159,7 +159,14 @@ func (adapter *mqttAdapter) Req(module, route string, params any) PackResp {
 	p.Content = nil
 	return p
 }
+
+func (adapter *mqttAdapter) SendRetainNotice(route string, content any) error {
+	return adapter.sendNotice(route, true, content)
+}
 func (adapter *mqttAdapter) SendNotice(route string, content any) error {
+	return adapter.sendNotice(route, false, content)
+}
+func (adapter *mqttAdapter) sendNotice(route string, isRetain bool, content any) error {
 	if !adapter.isLinked {
 		return errors.New("adapter is not linked")
 	}
@@ -169,7 +176,7 @@ func (adapter *mqttAdapter) SendNotice(route string, content any) error {
 		adapter.Err("Notice marshal error", err)
 		return err
 	}
-	token := adapter.client.Publish(NoticeTopic, 0, false, js)
+	token := adapter.client.Publish(NoticeTopic, 0, isRetain, js)
 	if token.Wait() && token.Error() != nil {
 		adapter.Err("Notice send error", token.Error())
 		return err
@@ -208,7 +215,7 @@ func (adapter *mqttAdapter) req(pack PackReq) PackResp {
 			RespCode: ERespUnLinked,
 		}
 	}
-	respChan := make(chan PackResp, 0)
+	respChan := make(chan PackResp)
 	adapter.mu.Lock()
 	adapter.respDict[pack.Id] = respChan
 	adapter.mu.Unlock()
