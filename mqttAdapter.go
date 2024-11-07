@@ -87,6 +87,21 @@ func NewMqttAdapter(setting Setting) IAdapter {
 			adapter.Debug(topic + " Subscribed")
 
 		}
+		if adapter.setting.OnRetainNotice != nil {
+			topic = RetainNoticeTopic
+			token = adapter.client.Subscribe(topic, 0, func(_ mqtt.Client, message mqtt.Message) {
+				notice := &PackNotice{}
+				err := json.Unmarshal(message.Payload(), notice)
+				if err != nil {
+					adapter.Err("Notice Unmarshal error", err)
+				}
+				adapter.setting.OnRetainNotice(*notice)
+			})
+			if token.Wait() && token.Error() != nil {
+				adapter.Err("RetainNotice Subscribe error", token.Error())
+			}
+			adapter.Debug(topic + " Subscribed")
+		}
 		//如果日志回调不为空，订阅日志主题
 		if adapter.setting.OnLog != nil {
 			topic = LogTopic

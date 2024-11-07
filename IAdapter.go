@@ -53,15 +53,16 @@ type Setting struct {
 	// TimeOut 超时时间 毫秒
 	TimeOut time.Duration
 	// ReTry 请求重试次数
-	ReTry         int
-	OnReq         ReqHandler
-	OnNotice      NoticeHandler
-	OnLog         LogHandler
-	StatusChanged StatusChangedHandler
-	UID           string
-	PWD           string
-	SaveErrorLog  bool
-	LogMode       ELogMode
+	ReTry          int
+	OnReq          ReqHandler
+	OnNotice       NoticeHandler
+	OnRetainNotice NoticeHandler
+	OnLog          LogHandler
+	StatusChanged  StatusChangedHandler
+	UID            string
+	PWD            string
+	SaveErrorLog   bool
+	LogMode        ELogMode
 }
 
 // NewSetting 快速新建设置 默认3秒延迟 3次重试

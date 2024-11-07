@@ -26,7 +26,10 @@ func TestMqttClient(t *testing.T) {
 	moduleA := easyCon.NewMqttAdapter(setting)
 	setting.Module = "ModuleB"
 	setting.OnNotice = func(notice easyCon.PackNotice) {
-		fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), notice.Content)
+		fmt.Printf("[%s]:Notice %s \r\n", time.Now().Format("15:04:05.000"), notice.Content)
+	}
+	setting.OnRetainNotice = func(notice easyCon.PackNotice) {
+		fmt.Printf("[%s]:RetainNotice %s \r\n", time.Now().Format("15:04:05.000"), notice.Content)
 	}
 	setting.OnLog = func(log easyCon.PackLog) {
 		fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), log.Content)
@@ -65,13 +68,19 @@ func TestMqttClient(t *testing.T) {
 
 	}
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 10; i++ {
 		//go func() {
 		err := moduleA.SendNotice("debugLog", "I am ModuleA Notice")
 		if err != nil {
 			fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "通知发送失败")
 		} else {
 			fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "通知发送成功")
+		}
+		err = moduleA.SendRetainNotice("debugLog", "I am ModuleA Notice")
+		if err != nil {
+			fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "保留通知发送失败")
+		} else {
+			fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "保留通知发送成功")
 		}
 		//}()
 		time.Sleep(time.Second)
