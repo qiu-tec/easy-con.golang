@@ -24,8 +24,13 @@ const (
 	NoticeTopic       string = "Notice"
 	RetainNoticeTopic string = "RetainNotice"
 	LogTopic          string = "Log"
+	DetectedTopic     string = "Resp"
 )
 
+type keyValuePair struct {
+	Key   string
+	Value any
+}
 type packBase struct {
 	PType EPType
 	Id    uint64
@@ -218,4 +223,7 @@ func buildReqTopic(module string) string {
 }
 func buildRespTopic(module string) string {
 	return "Response_" + module
+}
+func buildDetectedTopic(module string) string {
+	return "Detected_" + module
 }

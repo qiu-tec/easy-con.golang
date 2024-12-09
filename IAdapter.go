@@ -11,6 +11,7 @@ import (
 )
 
 type ReqHandler func(pack PackReq) (EResp, any)
+type RespHandler func(pack PackResp)
 type NoticeHandler func(PackNotice)
 type StatusChangedHandler func(adapter IAdapter, status EStatus)
 type LogHandler func(PackLog)
@@ -32,6 +33,7 @@ type IAdapter interface {
 
 	// SendRetainNotice 发送保留通知
 	SendRetainNotice(route string, content any) error
+
 	iLogger
 }
 type iLogger interface {
@@ -59,10 +61,17 @@ type Setting struct {
 	OnRetainNotice NoticeHandler
 	OnLog          LogHandler
 	StatusChanged  StatusChangedHandler
+	OnRespDetected RespHandler
 	UID            string
 	PWD            string
 	SaveErrorLog   bool
 	LogMode        ELogMode
+	// DetectedRoutes 检测路由  可以支持正则式
+	DetectedRoutes []string
+	// WatchedModules 监控模块
+	WatchedModules []string
+	//PreFix 通用topic前缀 影响log notice
+	PreFix string
 }
 
 // NewSetting 快速新建设置 默认3秒延迟 3次重试
