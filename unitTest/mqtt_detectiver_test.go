@@ -19,6 +19,7 @@ func TestMqttDetective(t *testing.T) {
 	wg.Add(1)
 	addr := "ws://127.0.0.1:5002/ws"
 	setting := easyCon.NewSetting("ModuleDetective", addr, nil, onStatusChanged)
+
 	setting.LogMode = easyCon.ELogModeUpload
 	setting.WatchedModules = []string{"ModuleA", "ModuleB"}
 	setting.PreFix = "Test_"
@@ -66,4 +67,7 @@ func TestMqttDetective(t *testing.T) {
 	}()
 	wg.Wait()
 
+}
+func onStatusChanged(status easyCon.EStatus) {
+	fmt.Printf("[%s]: %s %s \r\n", time.Now().Format("15:04:05.000"), "状态改为", status)
 }

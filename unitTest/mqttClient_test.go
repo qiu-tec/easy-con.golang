@@ -91,10 +91,6 @@ func TestMqttClient(t *testing.T) {
 	//time.Sleep(time.Second * 10)
 }
 
-func onStatusChanged(adapter easyCon.IAdapter, status easyCon.EStatus) {
-	adapter.Debug(string(status))
-}
-
 func onReq(pack easyCon.PackReq) (easyCon.EResp, any) {
 	switch pack.Route {
 	case "PING":

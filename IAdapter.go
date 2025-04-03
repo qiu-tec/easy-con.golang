@@ -11,9 +11,10 @@ import (
 )
 
 type ReqHandler func(pack PackReq) (EResp, any)
+type OnReqHandler func(pack PackReq)
 type RespHandler func(pack PackResp)
 type NoticeHandler func(PackNotice)
-type StatusChangedHandler func(adapter IAdapter, status EStatus)
+type StatusChangedHandler func(status EStatus)
 type LogHandler func(PackLog)
 
 // IAdapter 访问器接口
@@ -74,6 +75,23 @@ type Setting struct {
 	PreFix string
 }
 
+// MonitorSetting 监控器设置
+type MonitorSetting struct {
+	// Addr 访问地址
+	Addr   string
+	UID    string
+	PWD    string
+	Module string
+	//modules 需要监控的模块
+	DetectiveModules []string
+	OnReq            OnReqHandler
+	OnNotice         NoticeHandler
+	OnRetainNotice   NoticeHandler
+	OnLog            LogHandler
+	StatusChanged    StatusChangedHandler
+	OnResp           RespHandler
+}
+
 // NewSetting 快速新建设置 默认3秒延迟 3次重试
 func NewSetting(module string, addr string, onReq ReqHandler, onStatusChanged StatusChangedHandler) Setting {
 	return Setting{
@@ -86,4 +104,27 @@ func NewSetting(module string, addr string, onReq ReqHandler, onStatusChanged St
 		StatusChanged: onStatusChanged,
 		LogMode:       ELogModeConsole,
 	}
+}
+
+// NewMonitorSetting 快速监测器建设置
+func NewMonitorSetting(addr string, module string, detectiveModules []string, onReq OnReqHandler, onResp RespHandler, onNotice, onRetainNotice NoticeHandler, onLog LogHandler, onStatusChanged StatusChangedHandler) MonitorSetting {
+	return MonitorSetting{
+		Module:           module,
+		DetectiveModules: detectiveModules,
+		Addr:             addr,
+		OnReq:            onReq,
+		OnNotice:         onNotice,
+		OnRetainNotice:   onRetainNotice,
+		OnLog:            onLog,
+		OnResp:           onResp,
+		StatusChanged:    onStatusChanged,
+	}
+}
+
+type IMonitor interface {
+	// Stop 停止
+	Stop()
+	// Reset 复位
+	Reset()
+	iLogger
 }

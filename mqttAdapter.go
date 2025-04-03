@@ -61,7 +61,7 @@ func NewMqttAdapter(setting Setting) IAdapter {
 		SetAutoReconnect(true)
 	o.OnConnect = func(client mqtt.Client) {
 		adapter.isLinked = true
-		adapter.setting.StatusChanged(adapter, EStatusLinked)
+		adapter.setting.StatusChanged(EStatusLinked)
 
 		//订阅请求主题
 		topic := buildReqTopic(adapter.setting.Module)
@@ -162,10 +162,10 @@ func NewMqttAdapter(setting Setting) IAdapter {
 
 	o.OnConnectionLost = func(client mqtt.Client, err error) {
 		adapter.isLinked = false
-		adapter.setting.StatusChanged(adapter, EStatusLinkLost)
+		adapter.setting.StatusChanged(EStatusLinkLost)
 	}
 	o.OnReconnecting = func(client mqtt.Client, options *mqtt.ClientOptions) {
-		adapter.setting.StatusChanged(adapter, EStatusConnecting)
+		adapter.setting.StatusChanged(EStatusConnecting)
 	}
 
 	adapter.options = o
@@ -182,7 +182,7 @@ func (adapter *mqttAdapter) Stop() {
 	}()
 	adapter.wg.Wait()
 	adapter.client.Disconnect(10)
-	adapter.setting.StatusChanged(adapter, EStatusStopped)
+	adapter.setting.StatusChanged(EStatusStopped)
 }
 
 func (adapter *mqttAdapter) Reset() {
@@ -407,7 +407,6 @@ ReLink:
 	if token.Wait() && token.Error() != nil {
 		goto ReLink
 	}
-
 }
 
 func (adapter *mqttAdapter) sendLog(pack PackLog) {
