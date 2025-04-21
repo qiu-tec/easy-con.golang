@@ -198,7 +198,7 @@ func (adapter *mqttAdapter) Req(module, route string, params any) PackResp {
 		}
 	}
 	pack := newReqPack(adapter.setting.Module, module, route, params)
-	for retry := adapter.setting.ReTry; retry > 0; retry-- {
+	for retry := adapter.setting.ReTry; retry >= 0; retry-- {
 		resp := adapter.req(pack)
 		switch resp.RespCode {
 		case ERespTimeout:
