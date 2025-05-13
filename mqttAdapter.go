@@ -192,10 +192,6 @@ func (adapter *mqttAdapter) SendRetainNotice(route string, content any) error {
 	return adapter.sendNotice(route, true, content)
 }
 
-//func (adapter *mqttAdapter) SetPreFix(prefix string) {
-//	adapter.prefix = prefix
-//}
-
 func (adapter *mqttAdapter) SendNotice(route string, content any) error {
 	return adapter.sendNotice(route, false, content)
 }
@@ -319,20 +315,6 @@ func (adapter *mqttAdapter) onReq(message mqtt.Message) {
 	respPack = newRespPack(*pack, resp, content)
 
 }
-
-//func (adapter *mqttAdapter) onDetected(route string, pack []byte) {
-//	//检查路由是否匹配
-//	isMatched := checkRoute(route, adapter.setting.DetectedRoutes)
-//	if !isMatched {
-//		return
-//	}
-//	token := adapter.client.Publish(adapter.detectedTopic, 0, false, pack)
-//
-//	if token.Wait() && token.Error() != nil {
-//		adapter.Err("Detected send error", token.Error())
-//		return
-//	}
-//}
 
 // checkRoute 检查路由是否匹配
 func checkRoute(route string, routes []string) bool {
