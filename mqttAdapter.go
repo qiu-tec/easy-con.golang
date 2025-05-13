@@ -26,20 +26,21 @@ type mqttAdapter struct {
 	reqChan chan mqtt.Message
 	//响应chan
 	respChan chan mqtt.Message
-	//detectedChan 暴露chan
-	detectedChan  chan keyValuePair
-	detectedTopic string
-	//watchedChan 监听chan
-	watchedChan chan PackResp
-	stopChan    chan struct{}
-	logChan     chan PackLog
-	options     *mqtt.ClientOptions
-	wg          *sync.WaitGroup
-	isLinked    bool
+	stopChan chan struct{}
+	logChan  chan PackLog
+	options  *mqtt.ClientOptions
+	wg       *sync.WaitGroup
+	isLinked bool
 }
 
 func NewMqttAdapter(setting Setting) IAdapter {
+	return newMqttAdapter(setting)
+}
+func newMqttAdapter(setting Setting) *mqttAdapter {
+	return newMqttAdapterWithAfterLink(setting, nil)
+}
 
+func newMqttAdapterWithAfterLink(setting Setting, afterLink func(client mqtt.Client)) *mqttAdapter {
 	adapter := &mqttAdapter{
 		respDict: make(map[uint64]chan PackResp),
 		mu:       sync.RWMutex{},
@@ -51,7 +52,6 @@ func NewMqttAdapter(setting Setting) IAdapter {
 
 		wg: &sync.WaitGroup{},
 	}
-
 	adapter.setting = setting
 	o := mqtt.NewClientOptions().
 		SetClientID(setting.Module).
@@ -81,12 +81,6 @@ func NewMqttAdapter(setting Setting) IAdapter {
 			adapter.Err("Resp Subscribe error", token.Error())
 		}
 		adapter.Debug(topic + " Subscribed")
-
-		//如果检测回调不为空，创建chan
-		if adapter.setting.DetectedRoutes != nil {
-			adapter.detectedChan = make(chan keyValuePair, 100)
-		}
-
 		//如果通知回调不为空，订阅通知主题
 		if adapter.setting.OnNotice != nil {
 			topic = adapter.setting.PreFix + NoticeTopic
@@ -135,28 +129,8 @@ func NewMqttAdapter(setting Setting) IAdapter {
 			}
 			adapter.Debug(topic + " Subscribed")
 		}
-
-		if adapter.setting.WatchedModules != nil {
-			adapter.watchedChan = make(chan PackResp, 100)
-			for _, module := range adapter.setting.WatchedModules {
-				topic := buildDetectedTopic(module)
-				token := adapter.client.Subscribe(topic, 0, func(_ mqtt.Client, message mqtt.Message) {
-					resp := &PackResp{}
-					err := json.Unmarshal(message.Payload(), resp)
-					if err != nil {
-						adapter.Err("Detected Unmarshal error", err)
-					}
-					adapter.watchedChan <- *resp
-				})
-				if token.Wait() && token.Error() != nil {
-					adapter.Err("Detected Subscribe error", token.Error())
-				}
-				adapter.Debug(topic + " Subscribed")
-
-			}
-		}
-		if adapter.setting.DetectedRoutes != nil {
-			adapter.detectedTopic = buildDetectedTopic(adapter.setting.Module)
+		if afterLink != nil {
+			afterLink(client)
 		}
 	}
 
@@ -167,11 +141,8 @@ func NewMqttAdapter(setting Setting) IAdapter {
 	o.OnReconnecting = func(client mqtt.Client, options *mqtt.ClientOptions) {
 		adapter.setting.StatusChanged(EStatusConnecting)
 	}
-
 	adapter.options = o
-
 	adapter.link()
-
 	return adapter
 }
 
@@ -332,7 +303,7 @@ func (adapter *mqttAdapter) onReq(message mqtt.Message) {
 			adapter.Err("RESP send error", token.Error())
 			return
 		}
-		adapter.detectedChan <- keyValuePair{pack.Route, js}
+		//adapter.detectedChan <- keyValuePair{pack.Route, js}
 	}()
 
 	err := json.Unmarshal(message.Payload(), pack)
@@ -349,19 +320,19 @@ func (adapter *mqttAdapter) onReq(message mqtt.Message) {
 
 }
 
-func (adapter *mqttAdapter) onDetected(route string, pack []byte) {
-	//检查路由是否匹配
-	isMatched := checkRoute(route, adapter.setting.DetectedRoutes)
-	if !isMatched {
-		return
-	}
-	token := adapter.client.Publish(adapter.detectedTopic, 0, false, pack)
-
-	if token.Wait() && token.Error() != nil {
-		adapter.Err("Detected send error", token.Error())
-		return
-	}
-}
+//func (adapter *mqttAdapter) onDetected(route string, pack []byte) {
+//	//检查路由是否匹配
+//	isMatched := checkRoute(route, adapter.setting.DetectedRoutes)
+//	if !isMatched {
+//		return
+//	}
+//	token := adapter.client.Publish(adapter.detectedTopic, 0, false, pack)
+//
+//	if token.Wait() && token.Error() != nil {
+//		adapter.Err("Detected send error", token.Error())
+//		return
+//	}
+//}
 
 // checkRoute 检查路由是否匹配
 func checkRoute(route string, routes []string) bool {
@@ -387,10 +358,10 @@ func (adapter *mqttAdapter) loop() {
 			go adapter.onReq(msg)
 		case msg := <-adapter.respChan:
 			go adapter.onResp(msg)
-		case msg := <-adapter.detectedChan:
-			go adapter.onDetected(msg.Key, msg.Value.([]byte))
-		case msg := <-adapter.watchedChan:
-			go adapter.setting.OnRespDetected(msg)
+		//case msg := <-adapter.detectedChan:
+		//	go adapter.onDetected(msg.Key, msg.Value.([]byte))
+		//case msg := <-adapter.watchedChan:
+		//	go adapter.setting.OnRespDetected(msg)
 		case pack := <-adapter.logChan:
 			go adapter.sendLog(pack)
 		case <-adapter.stopChan:

@@ -62,34 +62,26 @@ type Setting struct {
 	OnRetainNotice NoticeHandler
 	OnLog          LogHandler
 	StatusChanged  StatusChangedHandler
-	OnRespDetected RespHandler
 	UID            string
 	PWD            string
 	SaveErrorLog   bool
 	LogMode        ELogMode
-	// DetectedRoutes 检测路由  可以支持正则式
-	DetectedRoutes []string
-	// WatchedModules 监控模块
-	WatchedModules []string
 	//PreFix 通用topic前缀 影响log notice
 	PreFix string
 }
 
 // MonitorSetting 监控器设置
 type MonitorSetting struct {
-	// Addr 访问地址
-	Addr   string
-	UID    string
-	PWD    string
-	Module string
+	Setting
+	//// Addr 访问地址
+	//Addr   string
+	//UID    string
+	//PWD    string
+	//Module string
 	//modules 需要监控的模块
 	DetectiveModules []string
-	OnReq            OnReqHandler
-	OnNotice         NoticeHandler
-	OnRetainNotice   NoticeHandler
-	OnLog            LogHandler
-	StatusChanged    StatusChangedHandler
-	OnResp           RespHandler
+	OnReqDetected    OnReqHandler
+	OnRespDetected   RespHandler
 }
 
 // NewSetting 快速新建设置 默认3秒延迟 3次重试
@@ -107,17 +99,12 @@ func NewSetting(module string, addr string, onReq ReqHandler, onStatusChanged St
 }
 
 // NewMonitorSetting 快速监测器建设置
-func NewMonitorSetting(addr string, module string, detectiveModules []string, onReq OnReqHandler, onResp RespHandler, onNotice, onRetainNotice NoticeHandler, onLog LogHandler, onStatusChanged StatusChangedHandler) MonitorSetting {
+func NewMonitorSetting(setting Setting, detectiveModules []string, onReqDetected OnReqHandler, onRespDetected RespHandler) MonitorSetting {
 	return MonitorSetting{
-		Module:           module,
+		Setting:          setting,
 		DetectiveModules: detectiveModules,
-		Addr:             addr,
-		OnReq:            onReq,
-		OnNotice:         onNotice,
-		OnRetainNotice:   onRetainNotice,
-		OnLog:            onLog,
-		OnResp:           onResp,
-		StatusChanged:    onStatusChanged,
+		OnReqDetected:    onReqDetected,
+		OnRespDetected:   onRespDetected,
 	}
 }
 
@@ -126,5 +113,7 @@ type IMonitor interface {
 	Stop()
 	// Reset 复位
 	Reset()
+	//MonitorResp 监控器主动响应
+	MonitorResp(req PackReq, respCode EResp, content any)
 	iLogger
 }

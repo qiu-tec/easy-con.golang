@@ -14,28 +14,30 @@ import (
 	"time"
 )
 
+var monitor easyCon.IMonitor
+
 func TestMqttDetective(t *testing.T) {
 	monitorSetting := easyCon.NewMonitorSetting(
-		"ws://127.0.0.1:5002/ws",
-		"monitor",
-		[]string{"ModuleA", "ModuleB"},
-		onReq,
-		onResp,
-		onNotice,
-		onRetainNotice,
-		onLog,
-		onStatus)
-	monitor := easyCon.NewMqttMonitor(monitorSetting)
-	setting := easyCon.NewSetting("ModuleA", "ws://127.0.0.1:5002/ws", onReqInvoke, onStatus)
-	setting.OnNotice = func(notice easyCon.PackNotice) {
-		fmt.Printf("[%s]:Notice %s \r\n", time.Now().Format("15:04:05.000"), notice.Content)
-	}
-	setting.OnRetainNotice = func(notice easyCon.PackNotice) {
-		fmt.Printf("[%s]:RetainNotice %s \r\n", time.Now().Format("15:04:05.000"), notice.Content)
-	}
-	setting.OnLog = func(log easyCon.PackLog) {
-		fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), log.Content)
-	}
+		easyCon.NewSetting("Monitor", "ws://127.0.0.1:5002/ws", onReq, onStatus),
+		[]string{"ModuleA", "ModuleB", "ModuleCloud"},
+		onReqDetected,
+		onRespDetected,
+	)
+	monitorSetting.OnLog = onLog
+	monitorSetting.OnRetainNotice = onRetainNotice
+	monitorSetting.OnNotice = onNotice
+	monitor = easyCon.NewMqttMonitor(monitorSetting)
+	setting := easyCon.NewSetting("ModuleA", "ws://127.0.0.1:5002/ws", onReq, onStatus)
+	setting.LogMode = easyCon.ELogModeNone
+	//setting.OnNotice = func(notice easyCon.PackNotice) {
+	//	fmt.Printf("[%s]:Notice %s \r\n", time.Now().Format("15:04:05.000"), notice.Content)
+	//}
+	//setting.OnRetainNotice = func(notice easyCon.PackNotice) {
+	//	fmt.Printf("[%s]:RetainNotice %s \r\n", time.Now().Format("15:04:05.000"), notice.Content)
+	//}
+	//setting.OnLog = func(log easyCon.PackLog) {
+	//	fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), log.Content)
+	//}
 
 	moduleA := easyCon.NewMqttAdapter(setting)
 	setting.Module = "ModuleB"
@@ -51,34 +53,35 @@ func TestMqttDetective(t *testing.T) {
 		res := moduleA.Req("ModuleB", "PING", "I am ModuleA")
 		if res.RespCode != easyCon.ERespSuccess {
 			fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求失败")
-		} else {
-			fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求成功")
 		}
 		res = moduleB.Req("ModuleA", "PING", "I am ModuleB")
 		if res.RespCode != easyCon.ERespSuccess {
 			fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求失败")
-		} else {
-			fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求成功")
 		}
-
+		//请求云服务的PING
+		res = moduleA.Req("ModuleCloud", "PING", "I am ModuleA")
+		if res.RespCode != easyCon.ERespSuccess {
+			fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求失败")
+		}
 	}
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 5; i++ {
 		_ = moduleA.SendNotice("Notice", "I am ModuleA Notice")
 		time.Sleep(time.Second)
 		_ = moduleA.SendRetainNotice("debugLog", "I am ModuleA Notice")
 		time.Sleep(time.Second)
 
 	}
+
 	moduleA.Err("moduleA日志测试", errors.New("ModuleA log error"))
 	time.Sleep(time.Second)
 	moduleB.Debug("moduleB日志测试")
 	time.Sleep(time.Second)
 
-	moduleA.Reset()
-	time.Sleep(time.Second)
-	moduleB.Reset()
-	time.Sleep(time.Second)
+	//moduleA.Reset()
+	//time.Sleep(time.Second)
+	//moduleB.Reset()
+	//time.Sleep(time.Second)
 
 }
 
@@ -98,14 +101,17 @@ func onNotice(notice easyCon.PackNotice) {
 	fmt.Println(time.Now().Format("15:04:05.000"), "Monitor detected notice=====", notice)
 }
 
-func onResp(pack easyCon.PackResp) {
+func onRespDetected(pack easyCon.PackResp) {
 	fmt.Println(time.Now().Format("15:04:05.000"), "Monitor detected response=====", pack)
 }
 
-func onReq(pack easyCon.PackReq) {
+func onReqDetected(pack easyCon.PackReq) {
 	fmt.Println(time.Now().Format("15:04:05.000"), "Monitor detected request=====", pack)
+	if pack.To == "ModuleCloud" {
+		monitor.MonitorResp(pack, easyCon.ERespSuccess, "pong")
+	}
 }
-func onReqInvoke(pack easyCon.PackReq) (easyCon.EResp, any) {
+func onReq(pack easyCon.PackReq) (easyCon.EResp, any) {
 	switch pack.Route {
 	case "PING":
 		return easyCon.ERespSuccess, "PONG"
