@@ -18,7 +18,7 @@ const (
 	// EProtocolMQTT MQTT协议
 	EProtocolMQTT EProtocol = "MQTT"
 	// EProtocolHTTP HTTP协议
-	EProtocolHTTP EProtocol = "HTTP"
+	//EProtocolHTTP EProtocol = "HTTP"
 )
 const (
 	NoticeTopic       string = "Notice"
@@ -26,10 +26,10 @@ const (
 	LogTopic          string = "Log"
 )
 
-type keyValuePair struct {
-	Key   string
-	Value any
-}
+//	type keyValuePair struct {
+//		Key   string
+//		Value any
+//	}
 type packBase struct {
 	PType EPType
 	Id    uint64
@@ -96,7 +96,7 @@ const (
 	EStatusLinkLost EStatus = "LinkLost"
 
 	// EStatusFault 故障
-	EStatusFault EStatus = "Fault"
+	//EStatusFault EStatus = "Fault"
 
 	// EStatusStopped 已停止
 	EStatusStopped EStatus = "Stopped"
@@ -112,8 +112,10 @@ const (
 	ERespSuccess EResp = 200
 	// ERespBadReq 错误的请求
 	ERespBadReq EResp = 400
+
 	// ERespForbidden 权限不足
-	ERespForbidden EResp = 403
+	//ERespForbidden EResp = 403
+
 	// ERespRouteNotFind 路由未找到
 	ERespRouteNotFind EResp = 404
 	// ERespError 响应端故障
@@ -133,9 +135,10 @@ type ELogMode string
 const (
 	ELogModeNone    ELogMode = "NONE"
 	ELogModeConsole ELogMode = "CONSOLE"
-	ELogModeFile    ELogMode = "FILE"
-	ELogModeUpload  ELogMode = "UPLOAD"
-	ELogModeAll     ELogMode = "ALL"
+	// ELogModeFile    ELogMode = "FILE"
+
+	ELogModeUpload ELogMode = "UPLOAD"
+	ELogModeAll    ELogMode = "ALL"
 )
 
 type ELogLevel string
@@ -200,6 +203,9 @@ func newRespPack(req PackReq, code EResp, content any) PackResp {
 	}
 	pack.PType = EPTypeResp
 	pack.Content = content
+	if pack.RespCode != ERespSuccess && pack.Content != nil {
+		pack.Error = content.(error).Error()
+	}
 	return pack
 }
 

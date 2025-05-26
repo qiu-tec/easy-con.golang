@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"regexp"
 	"sync"
 	"time"
 )
@@ -272,11 +271,14 @@ func (adapter *mqttAdapter) onResp(message mqtt.Message) {
 
 	pack := &PackResp{}
 	err := json.Unmarshal(message.Payload(), pack)
-
 	if err != nil {
 		adapter.Err("RESP unmarshal error", err)
 	}
 	adapter.Debug("Resp received raw is: " + string(message.Payload()))
+	if pack.RespCode != ERespSuccess && pack.Content != nil {
+		pack.Error = pack.Content.(error).Error()
+		pack.Content = nil
+	}
 	adapter.mu.RLock()
 	c, b := adapter.respDict[pack.Id]
 	if b {
@@ -304,32 +306,31 @@ func (adapter *mqttAdapter) onReq(message mqtt.Message) {
 
 	err := json.Unmarshal(message.Payload(), pack)
 	if err != nil {
-		respPack = newRespPack(*pack, ERespBadReq, nil)
-		respPack.RespCode = ERespBadReq
-		respPack.Error = err.Error()
+		respPack = newRespPack(*pack, ERespBadReq, err)
+		//respPack.RespCode = ERespBadReq
+		//respPack.Error = err.Error()
 		return
 	}
 	adapter.Debug("Req Received raw is: " + string(message.Payload()))
 	resp, content := adapter.setting.OnReq(*pack)
-
 	respPack = newRespPack(*pack, resp, content)
 
 }
 
-// checkRoute 检查路由是否匹配
-func checkRoute(route string, routes []string) bool {
-	for _, r := range routes {
-		//完全匹配
-		if r == route {
-			return true
-		}
-		//正则匹配
-		if regexp.MustCompile(r).MatchString(route) {
-			return true
-		}
-	}
-	return false
-}
+//// checkRoute 检查路由是否匹配
+//func checkRoute(route string, routes []string) bool {
+//	for _, r := range routes {
+//		//完全匹配
+//		if r == route {
+//			return true
+//		}
+//		//正则匹配
+//		if regexp.MustCompile(r).MatchString(route) {
+//			return true
+//		}
+//	}
+//	return false
+//}
 
 func (adapter *mqttAdapter) loop() {
 	adapter.wg.Add(1)

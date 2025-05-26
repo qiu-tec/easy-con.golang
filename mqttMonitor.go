@@ -39,8 +39,8 @@ func (monitor *mqttMonitor) onReqDetected(message mqtt.Message) {
 
 // MonitorResp 主动响应
 func (monitor *mqttMonitor) MonitorResp(req PackReq, respCode EResp, content any) {
-	resp := newRespPack(req, respCode, content)
-	respPack := newRespPack(req, resp.RespCode, resp.Content)
+	//resp := newRespPack(req, respCode, content, err)
+	respPack := newRespPack(req, respCode, content)
 	js, err := json.Marshal(respPack)
 	if err != nil {
 		monitor.Err("RESP marshal error", err)
@@ -65,7 +65,7 @@ func (monitor *mqttMonitor) onRespDetected(message mqtt.Message) {
 	monitor.OnRespDetected(*pack)
 }
 
-func (monitor *mqttMonitor) onLinked(client mqtt.Client) {
+func (monitor *mqttMonitor) onLinked(_ mqtt.Client) {
 	for _, module := range monitor.DetectiveModules {
 		//订阅请求主题
 		if monitor.OnReqDetected != nil {
