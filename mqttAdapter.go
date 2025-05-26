@@ -276,7 +276,18 @@ func (adapter *mqttAdapter) onResp(message mqtt.Message) {
 	}
 	adapter.Debug("Resp received raw is: " + string(message.Payload()))
 	if pack.RespCode != ERespSuccess && pack.Content != nil {
-		pack.Error = pack.Content.(error).Error()
+
+		e, b := pack.Content.(error)
+		if b {
+			pack.Error = e.Error()
+		} else {
+			s, b := pack.Content.(string)
+			if b {
+				pack.Error = s
+			} else {
+				pack.Error = fmt.Sprintf("%v", pack.Content)
+			}
+		}
 		pack.Content = nil
 	}
 	adapter.mu.RLock()
