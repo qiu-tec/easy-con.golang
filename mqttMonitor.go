@@ -16,14 +16,26 @@ type mqttMonitor struct {
 	options  *mqtt.ClientOptions
 	isLinked bool
 	*mqttAdapter
+	modulesChan chan string
 }
 
 func NewMqttMonitor(setting MonitorSetting) IMonitor {
 	monitor := &mqttMonitor{
 		MonitorSetting: setting,
+		modulesChan:    make(chan string, 100),
 	}
-	adapter := newMqttAdapterWithAfterLink(setting.Setting, monitor.onLinked)
+	adapterSetting := setting.Setting
+	adapterSetting.OnLog = monitor.onAdapterLog
+	adapterSetting.OnNotice = monitor.onAdapterNotice
+	adapterSetting.OnRetainNotice = monitor.onAdapterRetainNotice
+	adapter := newMqttAdapterInner(adapterSetting, monitor.onLinked)
 	monitor.mqttAdapter = adapter
+	go func() {
+		for {
+			module := <-monitor.modulesChan
+			monitor.discoverModules(module)
+		}
+	}()
 	return monitor
 }
 
@@ -34,12 +46,14 @@ func (monitor *mqttMonitor) onReqDetected(message mqtt.Message) {
 	if err != nil {
 		monitor.Err("REQ Pack unmarshal error", err)
 	}
+	monitor.modulesChan <- pack.From
+	monitor.modulesChan <- pack.To
 	monitor.OnReqDetected(*pack)
 }
 
 // MonitorResp 主动响应
 func (monitor *mqttMonitor) MonitorResp(req PackReq, respCode EResp, content any) {
-	//resp := newRespPack(req, respCode, content, err)
+	//resp := newRespPack(reqInner, respCode, content, err)
 	respPack := newRespPack(req, respCode, content)
 	js, err := json.Marshal(respPack)
 	if err != nil {
@@ -62,30 +76,63 @@ func (monitor *mqttMonitor) onRespDetected(message mqtt.Message) {
 	if err != nil {
 		monitor.Err("RESP unmarshal error", err)
 	}
+	monitor.modulesChan <- pack.From
+	monitor.modulesChan <- pack.To
 	monitor.OnRespDetected(*pack)
 }
 
 func (monitor *mqttMonitor) onLinked(_ mqtt.Client) {
 	for _, module := range monitor.DetectiveModules {
-		//订阅请求主题
-		if monitor.OnReqDetected != nil {
-			topicReq := buildReqTopic(module)
-			token := monitor.client.Subscribe(topicReq, 0, func(_ mqtt.Client, message mqtt.Message) {
-				monitor.onReqDetected(message)
-			})
-			if token.Wait() && token.Error() != nil {
-				monitor.Err("Req Subscribe error", token.Error())
-			}
+		monitor.sub(module)
+
+	}
+}
+
+func (monitor *mqttMonitor) onAdapterLog(log PackLog) {
+	monitor.modulesChan <- log.From
+	monitor.OnLog(log)
+}
+
+func (monitor *mqttMonitor) onAdapterNotice(notice PackNotice) {
+	monitor.modulesChan <- notice.From
+	monitor.OnNotice(notice)
+}
+
+func (monitor *mqttMonitor) onAdapterRetainNotice(notice PackNotice) {
+	monitor.modulesChan <- notice.From
+	monitor.OnRetainNotice(notice)
+}
+
+func (monitor *mqttMonitor) discoverModules(module string) {
+	for _, v := range monitor.DetectiveModules {
+		if v == module {
+			return
 		}
-		if monitor.OnRespDetected != nil {
-			//订阅响应主题
-			topicResp := buildRespTopic(module)
-			token := monitor.client.Subscribe(topicResp, 0, func(_ mqtt.Client, message mqtt.Message) {
-				monitor.onRespDetected(message)
-			})
-			if token.Wait() && token.Error() != nil {
-				monitor.Err("Resp Subscribe error", token.Error())
-			}
+
+	}
+	monitor.DetectiveModules = append(monitor.DetectiveModules, module)
+	monitor.sub(module)
+}
+
+func (monitor *mqttMonitor) sub(module string) {
+	//订阅请求主题
+	if monitor.OnReqDetected != nil {
+		topicReq := buildReqTopic(module)
+		token := monitor.client.Subscribe(topicReq, 0, func(_ mqtt.Client, message mqtt.Message) {
+			monitor.onReqDetected(message)
+		})
+		if token.Wait() && token.Error() != nil {
+			monitor.Err("Req Subscribe error", token.Error())
+		}
+	}
+	if monitor.OnRespDetected != nil {
+		//订阅响应主题
+		topicResp := buildRespTopic(module)
+		token := monitor.client.Subscribe(topicResp, 0, func(_ mqtt.Client, message mqtt.Message) {
+			monitor.onRespDetected(message)
+		})
+		if token.Wait() && token.Error() != nil {
+			monitor.Err("Resp Subscribe error", token.Error())
 		}
 	}
 }

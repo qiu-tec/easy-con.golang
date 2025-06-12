@@ -17,6 +17,8 @@ type EProtocol string
 const (
 	// EProtocolMQTT MQTT协议
 	EProtocolMQTT EProtocol = "MQTT"
+
+	EProtocolMQTTSync EProtocol = "MQTTSync"
 	// EProtocolHTTP HTTP协议
 	//EProtocolHTTP EProtocol = "HTTP"
 )
@@ -125,9 +127,10 @@ const (
 )
 
 var (
-	reqId    uint64
-	logId    uint64
-	noticeId uint64
+	reqId          uint64
+	logId          uint64
+	noticeId       uint64
+	retainNoticeId uint64
 )
 
 type ELogMode string
@@ -157,6 +160,9 @@ func getLogId() uint64 {
 }
 func getNoticeId() uint64 {
 	return atomic.AddUint64(&noticeId, 1)
+}
+func getRetainNoticeId() uint64 {
+	return atomic.AddUint64(&retainNoticeId, 1)
 }
 
 func newLogPack(module string, level ELogLevel, content string, err error) PackLog {
@@ -220,7 +226,17 @@ func newNoticePack(module, route string, content any) PackNotice {
 		Content: content,
 	}
 }
-
+func newRetainNoticePack(module, route string, content any) PackNotice {
+	return PackNotice{
+		packBase: packBase{
+			PType: EPTypeNotice,
+			Id:    getRetainNoticeId(),
+		},
+		From:    module,
+		Route:   route,
+		Content: content,
+	}
+}
 func buildReqTopic(module string) string {
 	return "Request_" + module
 }
