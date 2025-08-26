@@ -361,8 +361,9 @@ func (adapter *mqttAdapter) loop() {
 				adapter.onRetainNotice(msg)
 			case msg := <-adapter.reqChan:
 				adapter.onReq(msg)
+			case msg := <-adapter.logChan:
+				adapter.onLog(msg)
 			case <-adapter.stopChan:
-
 				ch <- struct{}{}
 				return
 			}
@@ -414,7 +415,7 @@ func (adapter *mqttAdapter) sendLog(pack PackLog) {
 		}
 		token := adapter.client.Publish(adapter.setting.PreFix+LogTopic, 0, false, js)
 		if token.Wait() && token.Error() != nil {
-			adapter.Err("Log send error", token.Error())
+			fmt.Printf("[%s][%s][Error]: %s\r\n", time.Now().Format("2006-01-02 15:04:05.000"), adapter.setting.Module, token.Error().Error())
 			return
 		}
 	}

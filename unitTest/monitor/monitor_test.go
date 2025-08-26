@@ -28,7 +28,7 @@ func TestMqttDetective(t *testing.T) {
 	monitorSetting.OnNotice = onNotice
 	monitor = easyCon.NewMqttMonitor(monitorSetting)
 	setting := easyCon.NewSetting("ModuleA", "ws://127.0.0.1:5002/ws", onReq, onStatus)
-	setting.LogMode = easyCon.ELogModeNone
+	setting.LogMode = easyCon.ELogModeUpload
 
 	time.Sleep(time.Second)
 	moduleA := easyCon.NewMqttAdapter(setting)
