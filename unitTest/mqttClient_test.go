@@ -14,6 +14,12 @@ import (
 	"time"
 )
 
+type Info struct {
+	Msg  string
+	ID   int
+	User string
+}
+
 func TestMqttClient(t *testing.T) {
 
 	addr := "ws://127.0.0.1:5002/ws"
@@ -46,7 +52,7 @@ func TestMqttClient(t *testing.T) {
 
 	moduleB.Reset()
 
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 10; i++ {
 		content := fmt.Sprintf("I am ModuleA %d", i)
 		go func() {
 			res := moduleA.Req("ModuleB", "PING", content)
@@ -66,6 +72,14 @@ func TestMqttClient(t *testing.T) {
 			}
 		}()
 	}
+	_ = moduleA.SendNotice("TestNotice", Info{Msg: "I am ModuleA Notice", ID: rand.Int(), User: "Joey"})
+	_ = moduleA.SendNotice("TestNotice", []Info{
+		{Msg: "I am ModuleA RetainNotice", ID: rand.Int(), User: "Joey"},
+		{Msg: "I am ModuleA RetainNotice", ID: rand.Int(), User: "Joey"},
+		{Msg: "I am ModuleA RetainNotice", ID: rand.Int(), User: "Joey"}})
+	_ = moduleA.SendNotice("TestFloatNotice", float64(1.1))
+	_ = moduleA.SendNotice("TestBytesNotice", []byte{1, 2, 3, 4})
+	_ = moduleA.Req("ModuleB", "Test", Info{Msg: "I am ModuleA Notice", ID: rand.Int(), User: "Joey"})
 
 	/*
 		for i := 0; i < 10; i++ {
@@ -104,6 +118,9 @@ func onReq(pack easyCon.PackReq) (easyCon.EResp, any) {
 	case "PING":
 		time.Sleep(time.Millisecond * time.Duration(n))
 		return easyCon.ERespSuccess, "PONG"
+	case "Test":
+		time.Sleep(time.Millisecond * time.Duration(n))
+		return easyCon.ERespSuccess, pack.Content
 	default:
 		return easyCon.ERespRouteNotFind, nil
 	}

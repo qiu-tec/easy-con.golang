@@ -37,6 +37,13 @@ type IAdapter interface {
 
 	iLogger
 }
+
+type IMonitor interface {
+	IAdapter
+	//MonitorResp 监控器主动响应
+	MonitorResp(req PackReq, respCode EResp, content any)
+}
+
 type iLogger interface {
 	// Debug 发送调试信息
 	Debug(content string)
@@ -73,12 +80,6 @@ type Setting struct {
 // MonitorSetting 监控器设置
 type MonitorSetting struct {
 	Setting
-	//// Addr 访问地址
-	//Addr   string
-	//UID    string
-	//PWD    string
-	//Module string
-	//modules 需要监控的模块
 	DetectiveModules []string
 	OnReqDetected    OnReqHandler
 	OnRespDetected   RespHandler
@@ -106,14 +107,4 @@ func NewMonitorSetting(setting Setting, detectiveModules []string, onReqDetected
 		OnReqDetected:    onReqDetected,
 		OnRespDetected:   onRespDetected,
 	}
-}
-
-type IMonitor interface {
-	// Stop 停止
-	Stop()
-	// Reset 复位
-	Reset()
-	//MonitorResp 监控器主动响应
-	MonitorResp(req PackReq, respCode EResp, content any)
-	iLogger
 }
