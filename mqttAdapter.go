@@ -317,21 +317,41 @@ func (adapter *mqttAdapter) onReq(message mqtt.Message) {
 }
 
 func (adapter *mqttAdapter) onNotice(message mqtt.Message) {
+	if adapter.setting.OnNotice == nil {
+		return
+	}
 	notice := &PackNotice{}
 	err := json.Unmarshal(message.Payload(), notice)
 	if err != nil {
 		adapter.Err("Notice Unmarshal error", err)
 	}
+
 	adapter.setting.OnNotice(*notice)
 }
 
 func (adapter *mqttAdapter) onRetainNotice(message mqtt.Message) {
+	if adapter.setting.OnRetainNotice == nil {
+		return
+	}
 	notice := &PackNotice{}
 	err := json.Unmarshal(message.Payload(), notice)
 	if err != nil {
 		adapter.Err("Notice Unmarshal error", err)
 	}
 	adapter.setting.OnRetainNotice(*notice)
+}
+
+func (adapter *mqttAdapter) onLog(msg mqtt.Message) {
+	if adapter.setting.OnLog == nil {
+		return
+	}
+	var log PackLog
+	err := json.Unmarshal(msg.Payload(), &log)
+	if err != nil {
+		fmt.Println("Log Unmarshal error", err)
+	}
+	//printLog(log)
+	adapter.setting.OnLog(log)
 }
 
 // loop main loop
@@ -419,15 +439,6 @@ func (adapter *mqttAdapter) sendLog(pack PackLog) {
 			return
 		}
 	}
-}
-
-func (adapter *mqttAdapter) onLog(msg mqtt.Message) {
-	var log PackLog
-	err := json.Unmarshal(msg.Payload(), &log)
-	if err != nil {
-		fmt.Println("Log Unmarshal error", err)
-	}
-	printLog(log)
 }
 
 func printLog(log PackLog) {
