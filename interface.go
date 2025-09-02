@@ -35,6 +35,8 @@ type IAdapter interface {
 	// SendRetainNotice 发送保留通知
 	SendRetainNotice(route string, content any) error
 
+	CleanRetainNotice() error
+
 	iLogger
 }
 
@@ -42,8 +44,17 @@ type IMonitor interface {
 	IAdapter
 	//MonitorResp 监控器主动响应
 	MonitorResp(req PackReq, respCode EResp, content any)
+	MonitorNotice(notice PackNotice)
+	MonitorRetainNotice(notice PackNotice)
+	MonitorLog(log PackLog)
+	Discover(module string)
 }
-
+type IProxy interface {
+	// Stop 停止
+	Stop()
+	// Reset 复位
+	Reset()
+}
 type iLogger interface {
 	// Debug 发送调试信息
 	Debug(content string)
@@ -83,6 +94,24 @@ type MonitorSetting struct {
 	DetectiveModules []string
 	OnReqDetected    OnReqHandler
 	OnRespDetected   RespHandler
+	OnDiscover       func(module string)
+}
+
+// ProxySetting 代理设置
+type ProxySetting struct {
+	Module string
+	// EProtocol 协议
+	EProtocol EProtocol
+	// Addr 访问地址
+	Addr string
+	// TimeOut 超时时间 毫秒
+	TimeOut time.Duration
+	// ReTry 请求重试次数
+	ReTry        int
+	UID          string
+	PWD          string
+	PreFix       string
+	ProxyModules []string
 }
 
 // NewSetting 快速新建设置 默认3秒延迟 3次重试

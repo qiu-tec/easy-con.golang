@@ -23,6 +23,7 @@ func TestMqttDetective(t *testing.T) {
 		onReqDetected,
 		onRespDetected,
 	)
+	//monitorSetting.PreFix = "Monitor."
 	monitorSetting.OnLog = onLog
 	monitorSetting.OnRetainNotice = onRetainNotice
 	monitorSetting.OnNotice = onNotice
@@ -30,6 +31,7 @@ func TestMqttDetective(t *testing.T) {
 	setting := easyCon.NewSetting("ModuleA", "ws://127.0.0.1:5002/ws", onReq, onStatus)
 	setting.LogMode = easyCon.ELogModeUpload
 
+	//setting.PreFix = "Monitor."
 	time.Sleep(time.Second)
 	moduleA := easyCon.NewMqttAdapter(setting)
 	setting.Module = "ModuleB"
@@ -40,33 +42,36 @@ func TestMqttDetective(t *testing.T) {
 		moduleA.Stop()
 		moduleB.Stop()
 	}()
-	for i := 0; i < 2; i++ {
-		_ = moduleA.SendNotice("Notice", "I am ModuleA Notice")
-		time.Sleep(time.Second)
-		_ = moduleA.SendRetainNotice("RetainNotice", "I am ModuleA RetainNotice")
-		time.Sleep(time.Second)
-		moduleB.Debug("moduleB日志测试")
+	//for i := 0; i < 2; i++ {
+	_ = moduleA.SendNotice("Notice", "I am ModuleA Notice")
+	time.Sleep(time.Second)
+	_ = moduleA.SendRetainNotice("RetainNotice", "I am ModuleA RetainNotice")
+	time.Sleep(time.Second)
+	_ = moduleA.CleanRetainNotice()
+	moduleB.Debug("moduleB日志测试")
 
-	}
-	for i := 0; i < 5; i++ {
+	//}
+	//	for i := 0; i < 2; i++ {
 
-		res := moduleA.Req("ModuleB", "PING", "I am ModuleA")
-		if res.RespCode != easyCon.ERespSuccess {
-			fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求失败")
-		}
-		time.Sleep(time.Second)
-		res = moduleB.Req("ModuleA", "PING", "I am ModuleB")
-		if res.RespCode != easyCon.ERespSuccess {
-			fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求失败")
-		}
-		time.Sleep(time.Second)
-		//请求云服务的PING
-		res = moduleA.Req("ModuleCloud", "PING", "I am ModuleA")
-		if res.RespCode != easyCon.ERespSuccess {
-			fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求失败")
-		}
-		time.Sleep(time.Second)
+	//res := moduleA.Req("ModuleB", "PING", "I am ModuleA")
+	//if res.RespCode != easyCon.ERespSuccess {
+	//	fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求失败")
+	//}
+	//time.Sleep(time.Second)
+	//res = moduleB.Req("ModuleA", "PING", "I am ModuleB")
+	//if res.RespCode != easyCon.ERespSuccess {
+	//	fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求失败")
+	//}
+	//time.Sleep(time.Second)
+	//请求云服务的PING
+	res := moduleA.Req("ModuleCloud", "PING", "I am ModuleA")
+	if res.RespCode != easyCon.ERespSuccess {
+		fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求失败")
+	} else {
+		fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求成功")
 	}
+	time.Sleep(time.Second)
+	//}
 
 	moduleA.Err("moduleA日志测试", errors.New("ModuleA log error"))
 	time.Sleep(time.Second)

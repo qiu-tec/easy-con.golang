@@ -51,14 +51,16 @@ func newMqttAdapterInner(setting Setting, afterLink func(client mqtt.Client)) *m
 
 	adapter.setting = setting
 	o := mqtt.NewClientOptions().
-		SetClientID(setting.Module).
+		SetClientID(setting.PreFix + setting.Module).
 		AddBroker(setting.Addr).
 		SetUsername(setting.UID).
 		SetPassword(setting.PWD).
 		SetAutoReconnect(true)
 	o.OnConnect = func(client mqtt.Client) {
 		adapter.isLinked = true
-		adapter.setting.StatusChanged(EStatusLinked)
+		if adapter.setting.StatusChanged != nil {
+			adapter.setting.StatusChanged(EStatusLinked)
+		}
 		err := adapter.SendNotice("Linked", "I am online")
 		if err != nil {
 			fmt.Printf("Send Notice error %s \r\n", err)
@@ -84,10 +86,14 @@ func newMqttAdapterInner(setting Setting, afterLink func(client mqtt.Client)) *m
 
 	o.OnConnectionLost = func(client mqtt.Client, err error) {
 		adapter.isLinked = false
-		adapter.setting.StatusChanged(EStatusLinkLost)
+		if adapter.setting.StatusChanged != nil {
+			adapter.setting.StatusChanged(EStatusLinkLost)
+		}
 	}
 	o.OnReconnecting = func(client mqtt.Client, options *mqtt.ClientOptions) {
-		adapter.setting.StatusChanged(EStatusConnecting)
+		if adapter.setting.StatusChanged != nil {
+			adapter.setting.StatusChanged(EStatusConnecting)
+		}
 	}
 	adapter.options = o
 	adapter.link()
@@ -95,23 +101,24 @@ func newMqttAdapterInner(setting Setting, afterLink func(client mqtt.Client)) *m
 }
 
 func (adapter *mqttAdapter) subscribe(kind string) {
+	pre := adapter.setting.PreFix
 	var topic string
 	var channel chan mqtt.Message
 	switch kind {
 	case "Req":
-		topic = buildReqTopic(adapter.setting.Module)
+		topic = buildReqTopic(pre + adapter.setting.Module)
 		channel = adapter.reqChan
 	case "Resp":
-		topic = buildRespTopic(adapter.setting.Module)
+		topic = buildRespTopic(pre + adapter.setting.Module)
 		channel = adapter.respChan
 	case "Notice":
-		topic = adapter.setting.PreFix + NoticeTopic
+		topic = pre + NoticeTopic
 		channel = adapter.noticeChan
 	case "RetainNotice":
-		topic = adapter.setting.PreFix + RetainNoticeTopic
+		topic = pre + RetainNoticeTopic
 		channel = adapter.retainNoticeChan
 	case "Log":
-		topic = adapter.setting.PreFix + LogTopic
+		topic = pre + LogTopic
 		channel = adapter.logChan
 	}
 
@@ -131,7 +138,9 @@ func (adapter *mqttAdapter) Stop() {
 	}()
 	adapter.wg.Wait()
 	adapter.client.Disconnect(10)
-	adapter.setting.StatusChanged(EStatusStopped)
+	if adapter.setting.StatusChanged != nil {
+		adapter.setting.StatusChanged(EStatusStopped)
+	}
 }
 
 func (adapter *mqttAdapter) Reset() {
@@ -171,6 +180,9 @@ func (adapter *mqttAdapter) Req(module, route string, params any) PackResp {
 func (adapter *mqttAdapter) SendRetainNotice(route string, content any) error {
 	return adapter.sendNoticeInner(route, true, content)
 }
+func (adapter *mqttAdapter) CleanRetainNotice() error {
+	return adapter.sendNoticeInner("", true, nil)
+}
 
 // SendNotice Send Notice
 func (adapter *mqttAdapter) SendNotice(route string, content any) error {
@@ -196,7 +208,10 @@ func (adapter *mqttAdapter) sendNoticeInner(route string, isRetain bool, content
 	}
 	topic := adapter.setting.PreFix + NoticeTopic
 	if isRetain {
-		topic = RetainNoticeTopic
+		topic = adapter.setting.PreFix + RetainNoticeTopic
+	}
+	if route == "" && isRetain {
+		js = nil
 	}
 	token := adapter.client.Publish(topic, 0, isRetain, js)
 	if token.Wait() && token.Error() != nil {
@@ -230,8 +245,8 @@ func (adapter *mqttAdapter) reqInner(pack PackReq) PackResp {
 			Error:    err.Error(),
 		}
 	}
-
-	token := adapter.client.Publish(buildReqTopic(pack.To), 0, false, raw)
+	pre := adapter.setting.PreFix
+	token := adapter.client.Publish(buildReqTopic(pre+pack.To), 0, false, raw)
 	if token.Wait() && token.Error() != nil {
 		adapter.Err(fmt.Sprintf("REQ %d send error\r\n", pack.Id), token.Error())
 		return PackResp{
@@ -299,7 +314,7 @@ func (adapter *mqttAdapter) onReq(message mqtt.Message) {
 			adapter.Err("RESP marshal error", err)
 			return
 		}
-		token := adapter.client.Publish(buildRespTopic(pack.From), 0, false, js)
+		token := adapter.client.Publish(buildRespTopic(adapter.setting.PreFix+pack.From), 0, false, js)
 		if token.Wait() && token.Error() != nil {
 			adapter.Err("RESP send error", token.Error())
 			return
@@ -325,18 +340,24 @@ func (adapter *mqttAdapter) onNotice(message mqtt.Message) {
 	if err != nil {
 		adapter.Err("Notice Unmarshal error", err)
 	}
-
+	if notice.From == adapter.setting.Module {
+		return
+	}
 	adapter.setting.OnNotice(*notice)
 }
 
 func (adapter *mqttAdapter) onRetainNotice(message mqtt.Message) {
-	if adapter.setting.OnRetainNotice == nil {
+	if adapter.setting.OnRetainNotice == nil || message.Payload() == nil || len(message.Payload()) == 0 {
 		return
 	}
+
 	notice := &PackNotice{}
 	err := json.Unmarshal(message.Payload(), notice)
 	if err != nil {
-		adapter.Err("Notice Unmarshal error", err)
+		adapter.Err("RetainNotice Unmarshal error", err)
+	}
+	if notice.From == adapter.setting.Module {
+		return
 	}
 	adapter.setting.OnRetainNotice(*notice)
 }
@@ -351,6 +372,9 @@ func (adapter *mqttAdapter) onLog(msg mqtt.Message) {
 		fmt.Println("Log Unmarshal error", err)
 	}
 	//printLog(log)
+	if log.From == adapter.setting.Module {
+		return
+	}
 	adapter.setting.OnLog(log)
 }
 

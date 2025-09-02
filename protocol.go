@@ -83,6 +83,17 @@ const (
 	EPTypeLog EPType = "LOG"
 )
 
+type EProxyMode int
+
+const (
+	// EProxyModeForward proxy Req from A -> B
+	EProxyModeForward EProxyMode = 0
+	// EProxyModeReverse proxy Req from B -> A
+	EProxyModeReverse EProxyMode = 1
+	//// EProxyModeBoth proxy Req Both way
+	//EProxyModeBoth EProxyMode = 2
+)
+
 // EStatus 访问器状态
 type EStatus string
 
