@@ -2,7 +2,7 @@ module versionAndExit
 
 go 1.20
 
-require github.com/qiu-tec/easy-con.golang v0.2.0
+require github.com/qiu-tec/easy-con.golang v0.2.1
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.4.3 // indirect
