@@ -4,22 +4,37 @@
  * @Create Date: 2025/9/3 10:30
  */
 
-package versionAndExit
+package main
 
 import (
 	"fmt"
 	easyCon "github.com/qiu-tec/easy-con.golang"
-	"testing"
+	"runtime/debug"
 	"time"
 )
 
-func TestVersionAndExit(t *testing.T) {
+func getVersion() string {
+	// 尝试从构建信息中获取版本信息
+	if info, ok := debug.ReadBuildInfo(); ok {
+		// 遍历所有的依赖项
+		for _, dep := range info.Deps {
+			// 如果你的包是作为一个依赖被引入的，这里可以匹配到
+			if dep.Path == "github.com/qiu-tec/easy-con.golang" {
+				return dep.Version
+			}
+		}
+	}
+	// 如果无法从构建信息中获取，则回退到编译时注入的 Version 变量
+	return "Unknown"
+}
+func main() {
+	fmt.Println(getVersion())
 	setting := easyCon.NewSetting("Commander", "ws://127.0.0.1:5002/ws", nil, nil)
 	cmd := easyCon.NewMqttAdapter(setting)
 
 	setting.Module = "Worker"
 	setting.OnGetVersion = func() []string {
-		return []string{"Worker:V1.0.0"}
+		return []string{"Worker:v1.0.0"}
 	}
 	setting.OnExiting = func() {
 		fmt.Println("exiting")

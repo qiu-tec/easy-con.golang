@@ -330,7 +330,7 @@ func (adapter *mqttAdapter) onReq(message mqtt.Message) {
 	if pack.Route == "GetVersion" {
 
 		var versions []string
-		versions = append(versions, "easy-con:V"+getVersion())
+		versions = append(versions, "easy-con:"+getVersion())
 		if adapter.setting.OnGetVersion != nil {
 			versions = append(versions, adapter.setting.OnGetVersion()...)
 		}
