@@ -27,25 +27,24 @@ func TestMqttProxy(t *testing.T) {
 func forwardMode() {
 	proxy := easyCon.NewMqttProxy(
 		easyCon.ProxySetting{
-			Module: "ProxyA",
-			//Addr:    "ws://127.0.0.1:5002/ws",
-			Addr:    "ws://127.0.0.1:8083/mqtt",
+			Module:  "ProxyA",
+			Addr:    "ws://127.0.0.1:5002/ws",
 			ReTry:   0,
 			PreFix:  "",
 			TimeOut: time.Second * 3,
+			LogMode: easyCon.ELogModeUpload,
 		},
 		easyCon.ProxySetting{
-			Module: "ProxyB",
-			//Addr:    "ws://127.0.0.1:5002/ws",
-			Addr:    "ws://127.0.0.1:8083/mqtt",
+			Module:  "ProxyB",
+			Addr:    "ws://127.0.0.1:5002/ws",
 			ReTry:   0,
 			PreFix:  "B.",
 			TimeOut: time.Second * 3,
-		}, easyCon.EProxyModeForward, easyCon.ELogModeNone)
+			LogMode: easyCon.ELogModeUpload,
+		}, easyCon.EProxyModeForward)
 
 	setting := easyCon.NewSetting("ModuleA",
-		//"ws://127.0.0.1:5002/ws",
-		"ws://127.0.0.1:8083/mqtt",
+		"ws://127.0.0.1:5002/ws",
 		onReqA,
 		nil)
 	setting.PreFix = ""
@@ -89,25 +88,24 @@ func forwardMode() {
 func reverseMode() {
 	proxy := easyCon.NewMqttProxy(
 		easyCon.ProxySetting{
-			Module: "ProxyA",
-			//Addr:    "ws://127.0.0.1:5002/ws",
-			Addr:    "ws://127.0.0.1:8083/mqtt",
+			Module:  "ProxyA",
+			Addr:    "ws://127.0.0.1:5002/ws",
 			ReTry:   0,
 			PreFix:  "A.",
+			LogMode: easyCon.ELogModeUpload,
 			TimeOut: time.Second * 3,
 		},
 		easyCon.ProxySetting{
-			Module: "ProxyB",
-			//Addr:    "ws://127.0.0.1:5002/ws",
-			Addr:    "ws://127.0.0.1:8083/mqtt",
+			Module:  "ProxyB",
+			Addr:    "ws://127.0.0.1:5002/ws",
 			ReTry:   0,
 			PreFix:  "",
+			LogMode: easyCon.ELogModeUpload,
 			TimeOut: time.Second * 3,
-		}, easyCon.EProxyModeReverse, easyCon.ELogModeNone)
+		}, easyCon.EProxyModeReverse)
 
 	setting := easyCon.NewSetting("ModuleA",
-		//"ws://127.0.0.1:5002/ws",
-		"ws://127.0.0.1:8083/mqtt",
+		"ws://127.0.0.1:5002/ws",
 		onReqA, nil)
 	setting.PreFix = "A."
 	setting.OnLog = onLogA

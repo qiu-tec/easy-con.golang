@@ -28,25 +28,27 @@ type IAdapter interface {
 	Reset()
 	// Req 请求
 	Req(module, route string, params any) PackResp
-
 	// SendNotice 发送通知
 	SendNotice(route string, content any) error
-
 	// SendRetainNotice 发送保留通知
 	SendRetainNotice(route string, content any) error
-
+	// CleanRetainNotice 清除保留通知
 	CleanRetainNotice() error
-
 	iLogger
 }
 
 type IMonitor interface {
 	IAdapter
-	//MonitorResp 监控器主动响应
-	MonitorResp(req PackReq, respCode EResp, content any)
-	MonitorNotice(notice PackNotice)
-	MonitorRetainNotice(notice PackNotice)
-	MonitorLog(log PackLog)
+	//RelayResp 转发响应
+	RelayResp(req PackReq, respCode EResp, content any)
+
+	// RelayNotice 转发通知
+	RelayNotice(notice PackNotice)
+	// RelayRetainNotice 转发保留通知
+	RelayRetainNotice(notice PackNotice)
+	// RelayLog 转发日志
+	RelayLog(log PackLog)
+	// Discover 发现
 	Discover(module string)
 }
 type IProxy interface {
@@ -79,6 +81,8 @@ type Setting struct {
 	OnNotice       NoticeHandler
 	OnRetainNotice NoticeHandler
 	OnLog          LogHandler
+	OnExiting      func()
+	OnGetVersion   func() []string
 	StatusChanged  StatusChangedHandler
 	UID            string
 	PWD            string
@@ -112,6 +116,7 @@ type ProxySetting struct {
 	PWD          string
 	PreFix       string
 	ProxyModules []string
+	LogMode      ELogMode
 }
 
 // NewSetting 快速新建设置 默认3秒延迟 3次重试
@@ -124,7 +129,9 @@ func NewSetting(module string, addr string, onReq ReqHandler, onStatusChanged St
 		ReTry:         3,
 		OnReq:         onReq,
 		StatusChanged: onStatusChanged,
+		SaveErrorLog:  false,
 		LogMode:       ELogModeConsole,
+		PreFix:        "",
 	}
 }
 

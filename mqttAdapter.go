@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"runtime/debug"
 	"sync"
 	"time"
 )
@@ -326,11 +327,45 @@ func (adapter *mqttAdapter) onReq(message mqtt.Message) {
 		respPack = newRespPack(*pack, ERespBadReq, err)
 		return
 	}
+	if pack.Route == "GetVersion" {
+
+		var versions []string
+		versions = append(versions, "easy-con:V"+getVersion())
+		if adapter.setting.OnGetVersion != nil {
+			versions = append(versions, adapter.setting.OnGetVersion()...)
+		}
+		respPack = newRespPack(*pack, ERespSuccess, versions)
+		return
+	}
+	if pack.Route == "Exit" {
+		if adapter.setting.OnExiting != nil {
+			adapter.setting.OnExiting()
+		}
+		respPack = newRespPack(*pack, ERespSuccess, nil)
+		time.AfterFunc(time.Millisecond*100, func() {
+			adapter.Stop()
+		})
+		return
+	}
+
 	resp, content := adapter.setting.OnReq(*pack)
 	respPack = newRespPack(*pack, resp, content)
 
 }
-
+func getVersion() string {
+	// 尝试从构建信息中获取版本信息
+	if info, ok := debug.ReadBuildInfo(); ok {
+		// 遍历所有的依赖项
+		for _, dep := range info.Deps {
+			// 如果你的包是作为一个依赖被引入的，这里可以匹配到
+			if dep.Path == "github.com/qiu-tec/easy-con.golang" {
+				return dep.Version
+			}
+		}
+	}
+	// 如果无法从构建信息中获取，则回退到编译时注入的 Version 变量
+	return "Unknown"
+}
 func (adapter *mqttAdapter) onNotice(message mqtt.Message) {
 	if adapter.setting.OnNotice == nil {
 		return

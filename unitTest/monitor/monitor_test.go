@@ -108,7 +108,7 @@ func onRespDetected(pack easyCon.PackResp) {
 func onReqDetected(pack easyCon.PackReq) {
 	fmt.Println(time.Now().Format("15:04:05.000"), "Monitor detected request=====", pack)
 	if pack.To == "ModuleCloud" {
-		monitor.MonitorResp(pack, easyCon.ERespSuccess, "pong")
+		monitor.RelayResp(pack, easyCon.ERespSuccess, "pong")
 	}
 }
 func onReq(pack easyCon.PackReq) (easyCon.EResp, any) {

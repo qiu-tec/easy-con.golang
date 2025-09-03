@@ -10,16 +10,15 @@ type mqttProxy struct {
 	a        IMonitor
 	b        IMonitor
 	mode     EProxyMode
-	logMode  ELogMode
 	settingA ProxySetting
 	settingB ProxySetting
 }
 
-func NewMqttProxy(settingA, settingB ProxySetting, mode EProxyMode, logMode ELogMode) IProxy {
-	proxy := &mqttProxy{mode: mode, logMode: logMode, settingA: settingA, settingB: settingB}
+func NewMqttProxy(settingA, settingB ProxySetting, mode EProxyMode) IProxy {
+	proxy := &mqttProxy{mode: mode, settingA: settingA, settingB: settingB}
 
 	sa := NewSetting(settingA.Module, settingA.Addr, nil, nil)
-	sa.LogMode = ELogModeUpload
+	sa.LogMode = settingA.LogMode
 	sa.PreFix = settingA.PreFix
 	sa.ReTry = settingA.ReTry
 	sa.TimeOut = settingA.TimeOut
@@ -34,7 +33,7 @@ func NewMqttProxy(settingA, settingB ProxySetting, mode EProxyMode, logMode ELog
 
 	sb := sa
 	sb = NewSetting(settingB.Module, settingB.Addr, nil, nil)
-	sb.LogMode = ELogModeUpload
+	sb.LogMode = settingB.LogMode
 	sb.PreFix = settingB.PreFix
 	sb.ReTry = settingB.ReTry
 	sb.TimeOut = settingB.TimeOut
@@ -76,7 +75,7 @@ func (m *mqttProxy) OnNoticeA(notice PackNotice) {
 	if m.mode == EProxyModeForward { //|| strings.HasSuffix(notice.From, "Proxy")
 		return
 	}
-	m.b.MonitorNotice(notice)
+	m.b.RelayNotice(notice)
 
 }
 
@@ -84,7 +83,7 @@ func (m *mqttProxy) OnRetainNoticeA(notice PackNotice) {
 	if m.mode == EProxyModeForward {
 		return
 	}
-	m.b.MonitorRetainNotice(notice)
+	m.b.RelayRetainNotice(notice)
 
 }
 
@@ -92,7 +91,7 @@ func (m *mqttProxy) OnLogA(log PackLog) {
 	if m.mode == EProxyModeForward {
 		return
 	}
-	m.b.MonitorLog(log)
+	m.b.RelayLog(log)
 }
 
 func (m *mqttProxy) OnNoticeB(notice PackNotice) {
@@ -100,7 +99,7 @@ func (m *mqttProxy) OnNoticeB(notice PackNotice) {
 	if m.mode == EProxyModeReverse {
 		return
 	}
-	m.a.MonitorNotice(notice)
+	m.a.RelayNotice(notice)
 
 }
 
@@ -108,14 +107,14 @@ func (m *mqttProxy) OnRetainNoticeB(notice PackNotice) {
 	if m.mode == EProxyModeReverse {
 		return
 	}
-	m.a.MonitorRetainNotice(notice)
+	m.a.RelayRetainNotice(notice)
 }
 
 func (m *mqttProxy) OnLogB(log PackLog) {
 	if m.mode == EProxyModeReverse {
 		return
 	}
-	m.a.MonitorLog(log)
+	m.a.RelayLog(log)
 }
 
 // OnReqDetectedA 正向代理 让来自A的请求 转发给B
@@ -125,7 +124,7 @@ func (m *mqttProxy) OnReqDetectedA(pack PackReq) {
 	}
 	//go func() {
 	resp := m.b.Req(pack.To, pack.Route, pack.Content)
-	m.a.MonitorResp(pack, resp.RespCode, resp.Content)
+	m.a.RelayResp(pack, resp.RespCode, resp.Content)
 	//}()
 
 }
@@ -137,7 +136,7 @@ func (m *mqttProxy) OnReqDetectedB(pack PackReq) {
 	}
 	//go func() {
 	resp := m.a.Req(pack.To, pack.Route, pack.Content)
-	m.b.MonitorResp(pack, resp.RespCode, resp.Content)
+	m.b.RelayResp(pack, resp.RespCode, resp.Content)
 	//}()
 
 }

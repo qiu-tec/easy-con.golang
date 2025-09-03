@@ -62,8 +62,8 @@ func (monitor *mqttMonitor) onReqDetected(message mqtt.Message) {
 	monitor.OnReqDetected(*pack)
 }
 
-// MonitorResp 主动响应
-func (monitor *mqttMonitor) MonitorResp(req PackReq, respCode EResp, content any) {
+// RelayResp 主动响应
+func (monitor *mqttMonitor) RelayResp(req PackReq, respCode EResp, content any) {
 	respPack := newRespPack(req, respCode, content)
 	js, err := json.Marshal(respPack)
 	if err != nil {
@@ -76,7 +76,9 @@ func (monitor *mqttMonitor) MonitorResp(req PackReq, respCode EResp, content any
 		return
 	}
 }
-func (monitor *mqttMonitor) MonitorNotice(notice PackNotice) {
+
+// RelayNotice 转发通知
+func (monitor *mqttMonitor) RelayNotice(notice PackNotice) {
 	js, err := json.Marshal(notice)
 	if err != nil {
 		monitor.Err("Notice marshal error", err)
@@ -88,7 +90,9 @@ func (monitor *mqttMonitor) MonitorNotice(notice PackNotice) {
 		return
 	}
 }
-func (monitor *mqttMonitor) MonitorRetainNotice(notice PackNotice) {
+
+// RelayRetainNotice 转发保留通知
+func (monitor *mqttMonitor) RelayRetainNotice(notice PackNotice) {
 	js, err := json.Marshal(notice)
 	if err != nil {
 		monitor.Err("Notice marshal error", err)
@@ -100,7 +104,9 @@ func (monitor *mqttMonitor) MonitorRetainNotice(notice PackNotice) {
 		return
 	}
 }
-func (monitor *mqttMonitor) MonitorLog(log PackLog) {
+
+// RelayLog 转发日志
+func (monitor *mqttMonitor) RelayLog(log PackLog) {
 	js, err := json.Marshal(log)
 	if err != nil {
 		monitor.Err("Notice marshal error", err)
