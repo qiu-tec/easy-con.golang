@@ -6,19 +6,25 @@
 
 package easyCon
 
+import (
+	"strconv"
+	"time"
+)
+
 type mqttProxy struct {
 	a        IMonitor
 	b        IMonitor
 	mode     EProxyMode
 	settingA ProxySetting
 	settingB ProxySetting
+	Id       string
 }
 
 func NewMqttProxy(settingA, settingB ProxySetting, mode EProxyMode) IProxy {
 	proxy := &mqttProxy{mode: mode, settingA: settingA, settingB: settingB}
-
-	sa := NewSetting(settingA.Module, settingA.Addr, nil, nil)
-	sa.LogMode = settingA.LogMode
+	proxy.Id = strconv.FormatInt(time.Now().UnixNano(), 10)
+	sa := NewSetting("ProxyA"+proxy.Id, settingA.Addr, nil, nil)
+	sa.LogMode = ELogModeNone
 	sa.PreFix = settingA.PreFix
 	sa.ReTry = settingA.ReTry
 	sa.TimeOut = settingA.TimeOut
@@ -32,8 +38,8 @@ func NewMqttProxy(settingA, settingB ProxySetting, mode EProxyMode) IProxy {
 	monitorSettingA.OnDiscover = proxy.onDiscoverA
 
 	sb := sa
-	sb = NewSetting(settingB.Module, settingB.Addr, nil, nil)
-	sb.LogMode = settingB.LogMode
+	sb = NewSetting("ProxyB"+proxy.Id, settingB.Addr, nil, nil)
+	sb.LogMode = ELogModeNone
 	sb.PreFix = settingB.PreFix
 	sb.ReTry = settingB.ReTry
 	sb.TimeOut = settingB.TimeOut
@@ -75,7 +81,13 @@ func (m *mqttProxy) OnNoticeA(notice PackNotice) {
 	if m.mode == EProxyModeForward { //|| strings.HasSuffix(notice.From, "Proxy")
 		return
 	}
-	m.b.RelayNotice(notice)
+	for i := 0; i < m.settingB.ReTry; i++ {
+		e := m.b.RelayNotice(notice)
+		if e == nil {
+			time.Sleep(m.settingB.TimeOut)
+			break
+		}
+	}
 
 }
 
@@ -83,7 +95,13 @@ func (m *mqttProxy) OnRetainNoticeA(notice PackNotice) {
 	if m.mode == EProxyModeForward {
 		return
 	}
-	m.b.RelayRetainNotice(notice)
+	for i := 0; i < m.settingB.ReTry; i++ {
+		e := m.b.RelayRetainNotice(notice)
+		if e == nil {
+			time.Sleep(m.settingB.TimeOut)
+			break
+		}
+	}
 
 }
 
@@ -91,7 +109,13 @@ func (m *mqttProxy) OnLogA(log PackLog) {
 	if m.mode == EProxyModeForward {
 		return
 	}
-	m.b.RelayLog(log)
+	for i := 0; i < m.settingB.ReTry; i++ {
+		e := m.b.RelayLog(log)
+		if e == nil {
+			time.Sleep(m.settingB.TimeOut)
+			break
+		}
+	}
 }
 
 func (m *mqttProxy) OnNoticeB(notice PackNotice) {
@@ -99,7 +123,13 @@ func (m *mqttProxy) OnNoticeB(notice PackNotice) {
 	if m.mode == EProxyModeReverse {
 		return
 	}
-	m.a.RelayNotice(notice)
+	for i := 0; i < m.settingA.ReTry; i++ {
+		e := m.a.RelayNotice(notice)
+		if e == nil {
+			time.Sleep(m.settingA.TimeOut)
+			break
+		}
+	}
 
 }
 
@@ -107,14 +137,26 @@ func (m *mqttProxy) OnRetainNoticeB(notice PackNotice) {
 	if m.mode == EProxyModeReverse {
 		return
 	}
-	m.a.RelayRetainNotice(notice)
+	for i := 0; i < m.settingA.ReTry; i++ {
+		e := m.a.RelayRetainNotice(notice)
+		if e == nil {
+			time.Sleep(m.settingA.TimeOut)
+			break
+		}
+	}
 }
 
 func (m *mqttProxy) OnLogB(log PackLog) {
 	if m.mode == EProxyModeReverse {
 		return
 	}
-	m.a.RelayLog(log)
+	for i := 0; i < m.settingA.ReTry; i++ {
+		e := m.a.RelayLog(log)
+		if e == nil {
+			time.Sleep(m.settingA.TimeOut)
+			break
+		}
+	}
 }
 
 // OnReqDetectedA 正向代理 让来自A的请求 转发给B
@@ -122,10 +164,8 @@ func (m *mqttProxy) OnReqDetectedA(pack PackReq) {
 	if m.mode == EProxyModeReverse {
 		return
 	}
-	//go func() {
 	resp := m.b.Req(pack.To, pack.Route, pack.Content)
 	m.a.RelayResp(pack, resp.RespCode, resp.Content)
-	//}()
 
 }
 
@@ -134,15 +174,13 @@ func (m *mqttProxy) OnReqDetectedB(pack PackReq) {
 	if m.mode == EProxyModeForward {
 		return
 	}
-	//go func() {
 	resp := m.a.Req(pack.To, pack.Route, pack.Content)
 	m.b.RelayResp(pack, resp.RespCode, resp.Content)
-	//}()
 
 }
 
 func (m *mqttProxy) onDiscoverA(module string) {
-	if m.mode == EProxyModeForward || m.settingA.ProxyModules != nil || module == m.settingA.Module { //正向代理时不需要处理 已经设置好代理时不需要处理
+	if m.mode == EProxyModeForward || m.settingA.ProxyModules != nil || module == "ProxyA"+m.Id { //正向代理时不需要处理 已经设置好代理时不需要处理
 		return
 	}
 	m.b.Discover(module)
@@ -150,7 +188,7 @@ func (m *mqttProxy) onDiscoverA(module string) {
 
 func (m *mqttProxy) onDiscoverB(module string) {
 
-	if m.mode == EProxyModeReverse || m.settingB.ProxyModules != nil || module == m.settingB.Module { //反向代理时不需要处理 已经设置好代理时不需要处理
+	if m.mode == EProxyModeReverse || m.settingB.ProxyModules != nil || module == "ProxyB"+m.Id { //反向代理时不需要处理 已经设置好代理时不需要处理
 		return
 	}
 	m.a.Discover(module)

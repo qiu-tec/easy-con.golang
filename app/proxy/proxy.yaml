@@ -1,0 +1,12 @@
+ProxyConfig:
+  Mode: Reverse
+  SettingA :
+    Addr:    "ws://127.0.0.1:5002/ws"
+    TimeOut: 3000
+    ReTry:   3
+    PreFix:  "A."
+  SettingB :
+    Addr:    "ws://127.0.0.1:5002/ws"
+    TimeOut: 3000
+    ReTry:   3
+    PreFix:  "B."

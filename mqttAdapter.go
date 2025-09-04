@@ -41,8 +41,8 @@ func newMqttAdapterInner(setting Setting, afterLink func(client mqtt.Client)) *m
 	adapter = &mqttAdapter{
 		respDict:         make(map[uint64]chan PackResp),
 		mu:               sync.RWMutex{},
-		reqChan:          make(chan mqtt.Message, 10),
-		respChan:         make(chan mqtt.Message, 10),
+		reqChan:          make(chan mqtt.Message, 100),
+		respChan:         make(chan mqtt.Message, 100),
 		noticeChan:       make(chan mqtt.Message, 100),
 		retainNoticeChan: make(chan mqtt.Message, 100),
 		stopChan:         make(chan struct{}),
@@ -67,8 +67,12 @@ func newMqttAdapterInner(setting Setting, afterLink func(client mqtt.Client)) *m
 			fmt.Printf("Send Notice error %s \r\n", err)
 			return
 		}
-		adapter.subscribe("Req")
+		if adapter.setting.OnReq != nil {
+			adapter.subscribe("Req")
+		}
+
 		adapter.subscribe("Resp")
+
 		//如果通知回调不为空，订阅通知主题
 		if adapter.setting.OnNotice != nil {
 			adapter.subscribe("Notice")
@@ -121,6 +125,7 @@ func (adapter *mqttAdapter) subscribe(kind string) {
 	case "Log":
 		topic = pre + LogTopic
 		channel = adapter.logChan
+
 	}
 
 	token := adapter.client.Subscribe(topic, 0, func(_ mqtt.Client, message mqtt.Message) {
@@ -327,30 +332,34 @@ func (adapter *mqttAdapter) onReq(message mqtt.Message) {
 		respPack = newRespPack(*pack, ERespBadReq, err)
 		return
 	}
-	if pack.Route == "GetVersion" {
 
+	resp, content := adapter.setting.OnReq(*pack)
+	respPack = newRespPack(*pack, resp, content)
+
+}
+
+func (adapter *mqttAdapter) onReqInner(req PackReq) PackResp {
+	if req.Route == "GetVersion" {
 		var versions []string
 		versions = append(versions, "easy-con:"+getVersion())
 		if adapter.setting.OnGetVersion != nil {
 			versions = append(versions, adapter.setting.OnGetVersion()...)
 		}
-		respPack = newRespPack(*pack, ERespSuccess, versions)
-		return
+		respPack := newRespPack(req, ERespSuccess, versions)
+		return respPack
 	}
-	if pack.Route == "Exit" {
+	if req.Route == "Exit" {
 		if adapter.setting.OnExiting != nil {
 			adapter.setting.OnExiting()
 		}
-		respPack = newRespPack(*pack, ERespSuccess, nil)
+		respPack := newRespPack(req, ERespSuccess, nil)
 		time.AfterFunc(time.Millisecond*100, func() {
 			adapter.Stop()
 		})
-		return
+		return respPack
 	}
-
-	resp, content := adapter.setting.OnReq(*pack)
-	respPack = newRespPack(*pack, resp, content)
-
+	resp, content := adapter.setting.OnReq(req)
+	return newRespPack(req, resp, content)
 }
 func getVersion() string {
 	// 尝试从构建信息中获取版本信息
@@ -424,6 +433,7 @@ func (adapter *mqttAdapter) loop() {
 				select {
 				case msg := <-adapter.respChan:
 					go adapter.onResp(msg)
+
 				case msg := <-adapter.logChan:
 					go adapter.onLog(msg)
 				case <-ch:
@@ -440,6 +450,7 @@ func (adapter *mqttAdapter) loop() {
 				adapter.onRetainNotice(msg)
 			case msg := <-adapter.reqChan:
 				adapter.onReq(msg)
+
 			case msg := <-adapter.logChan:
 				adapter.onLog(msg)
 			case <-adapter.stopChan:
@@ -456,8 +467,10 @@ func (adapter *mqttAdapter) loop() {
 				go adapter.onRetainNotice(msg)
 			case msg := <-adapter.reqChan:
 				go adapter.onReq(msg)
+
 			case msg := <-adapter.respChan:
 				go adapter.onResp(msg)
+
 			case msg := <-adapter.logChan:
 				go adapter.onLog(msg)
 			case <-adapter.stopChan:

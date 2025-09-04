@@ -83,13 +83,13 @@ const (
 	EPTypeLog EPType = "LOG"
 )
 
-type EProxyMode int
+type EProxyMode string
 
 const (
 	// EProxyModeForward proxy Req from A -> B
-	EProxyModeForward EProxyMode = 0
+	EProxyModeForward EProxyMode = "Forward"
 	// EProxyModeReverse proxy Req from B -> A
-	EProxyModeReverse EProxyMode = 1
+	EProxyModeReverse EProxyMode = "Reverse"
 	//// EProxyModeBoth proxy Req Both way
 	//EProxyModeBoth EProxyMode = 2
 )
@@ -199,9 +199,13 @@ func getNowStr() string {
 }
 
 func newReqPack(from, to string, route string, content any) PackReq {
+	return newReqPackInner(from, to, route, EPTypeReq, content)
+}
+
+func newReqPackInner(from, to string, route string, pType EPType, content any) PackReq {
 	return PackReq{
 		packBase: packBase{
-			PType: EPTypeReq,
+			PType: pType,
 			Id:    getReqId(),
 		},
 		From:    from,
@@ -253,4 +257,8 @@ func buildReqTopic(module string) string {
 }
 func buildRespTopic(module string) string {
 	return "Response_" + module
+}
+func buildGzipReqTopic(module string) string { return "RequestGzip_" + module } //ReqTopic
+func buildGzipRespTopic(module string) string {
+	return "ResponseGzip_" + module
 }

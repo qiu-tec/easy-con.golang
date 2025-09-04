@@ -78,45 +78,48 @@ func (monitor *mqttMonitor) RelayResp(req PackReq, respCode EResp, content any) 
 }
 
 // RelayNotice 转发通知
-func (monitor *mqttMonitor) RelayNotice(notice PackNotice) {
+func (monitor *mqttMonitor) RelayNotice(notice PackNotice) error {
 	js, err := json.Marshal(notice)
 	if err != nil {
 		monitor.Err("Notice marshal error", err)
-		return
+		return err
 	}
 	token := monitor.client.Publish(monitor.PreFix+NoticeTopic, 0, false, js)
 	if token.Wait() && token.Error() != nil {
 		monitor.Err("Notice send error", token.Error())
-		return
+		return token.Error()
 	}
+	return nil
 }
 
 // RelayRetainNotice 转发保留通知
-func (monitor *mqttMonitor) RelayRetainNotice(notice PackNotice) {
+func (monitor *mqttMonitor) RelayRetainNotice(notice PackNotice) error {
 	js, err := json.Marshal(notice)
 	if err != nil {
 		monitor.Err("Notice marshal error", err)
-		return
+		return err
 	}
 	token := monitor.client.Publish(monitor.PreFix+RetainNoticeTopic, 0, true, js)
 	if token.Wait() && token.Error() != nil {
 		monitor.Err("Retain Notice send error", token.Error())
-		return
+		return token.Error()
 	}
+	return nil
 }
 
 // RelayLog 转发日志
-func (monitor *mqttMonitor) RelayLog(log PackLog) {
+func (monitor *mqttMonitor) RelayLog(log PackLog) error {
 	js, err := json.Marshal(log)
 	if err != nil {
 		monitor.Err("Notice marshal error", err)
-		return
+		return err
 	}
 	token := monitor.client.Publish(monitor.PreFix+LogTopic, 0, false, js)
 	if token.Wait() && token.Error() != nil {
 		monitor.Err("Log send error", token.Error())
-		return
+		return token.Error()
 	}
+	return nil
 }
 
 // 发现响应

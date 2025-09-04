@@ -43,11 +43,11 @@ type IMonitor interface {
 	RelayResp(req PackReq, respCode EResp, content any)
 
 	// RelayNotice 转发通知
-	RelayNotice(notice PackNotice)
+	RelayNotice(notice PackNotice) error
 	// RelayRetainNotice 转发保留通知
-	RelayRetainNotice(notice PackNotice)
+	RelayRetainNotice(notice PackNotice) error
 	// RelayLog 转发日志
-	RelayLog(log PackLog)
+	RelayLog(log PackLog) error
 	// Discover 发现
 	Discover(module string)
 }
@@ -103,9 +103,7 @@ type MonitorSetting struct {
 
 // ProxySetting 代理设置
 type ProxySetting struct {
-	Module string
-	// EProtocol 协议
-	EProtocol EProtocol
+
 	// Addr 访问地址
 	Addr string
 	// TimeOut 超时时间 毫秒
@@ -116,7 +114,6 @@ type ProxySetting struct {
 	PWD          string
 	PreFix       string
 	ProxyModules []string
-	LogMode      ELogMode
 }
 
 // NewSetting 快速新建设置 默认3秒延迟 3次重试
