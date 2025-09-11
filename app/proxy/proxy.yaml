@@ -1,12 +1,21 @@
 ProxyConfig:
+  # Mode: Forward Reverse
   Mode: Reverse
   SettingA :
     Addr:    "ws://127.0.0.1:5002/ws"
-    TimeOut: 3000
+    TimeOut: 1000
     ReTry:   3
+    UID: ""
+    Pwd: ""
     PreFix:  "A."
+    ProxyModules:
+      - "ModuleA"
   SettingB :
     Addr:    "ws://127.0.0.1:5002/ws"
-    TimeOut: 3000
+    TimeOut: 1000
     ReTry:   3
+    UId: ""
+    Pwd: ""
     PreFix:  "B."
+    ProxyModules:
+      - "ModuleB"

@@ -28,13 +28,13 @@ func forwardMode() {
 	proxy := easyCon.NewMqttProxy(
 		easyCon.ProxySetting{
 			Addr:    "ws://127.0.0.1:5002/ws",
-			ReTry:   0,
+			ReTry:   3,
 			PreFix:  "",
 			TimeOut: time.Second * 3,
 		},
 		easyCon.ProxySetting{
 			Addr:    "ws://127.0.0.1:5002/ws",
-			ReTry:   0,
+			ReTry:   3,
 			PreFix:  "B.",
 			TimeOut: time.Second * 3,
 		}, easyCon.EProxyModeForward)
