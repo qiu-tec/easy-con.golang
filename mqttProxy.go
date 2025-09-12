@@ -88,6 +88,9 @@ func (m *mqttProxy) OnNoticeA(notice PackNotice) {
 	if m.mode == EProxyModeForward { //|| strings.HasSuffix(notice.From, "Proxy")
 		return
 	}
+	if !m.settingA.ProxyNotice {
+		return
+	}
 	for i := 0; i < m.settingB.ReTry; i++ {
 		if m.b == nil {
 			time.Sleep(m.settingB.TimeOut)
@@ -106,10 +109,13 @@ func (m *mqttProxy) OnNoticeA(notice PackNotice) {
 }
 
 func (m *mqttProxy) OnRetainNoticeA(notice PackNotice) {
+
 	if m.mode == EProxyModeForward {
 		return
 	}
-
+	if !m.settingA.ProxyRetainNotice {
+		return
+	}
 	for i := 0; i < m.settingB.ReTry; i++ {
 		if m.b == nil {
 			time.Sleep(m.settingB.TimeOut)
@@ -129,6 +135,9 @@ func (m *mqttProxy) OnRetainNoticeA(notice PackNotice) {
 
 func (m *mqttProxy) OnLogA(log PackLog) {
 	if m.mode == EProxyModeForward {
+		return
+	}
+	if !m.settingA.ProxyLog {
 		return
 	}
 	for i := 0; i < m.settingB.ReTry; i++ {
@@ -152,6 +161,9 @@ func (m *mqttProxy) OnNoticeB(notice PackNotice) {
 	if m.mode == EProxyModeReverse {
 		return
 	}
+	if m.settingB.ProxyNotice {
+		return
+	}
 	for i := 0; i < m.settingA.ReTry; i++ {
 		if m.a == nil {
 			time.Sleep(m.settingB.TimeOut)
@@ -172,6 +184,9 @@ func (m *mqttProxy) OnRetainNoticeB(notice PackNotice) {
 	if m.mode == EProxyModeReverse {
 		return
 	}
+	if !m.settingB.ProxyRetainNotice {
+		return
+	}
 	for i := 0; i < m.settingA.ReTry; i++ {
 		if m.a == nil {
 			time.Sleep(m.settingB.TimeOut)
@@ -190,6 +205,9 @@ func (m *mqttProxy) OnRetainNoticeB(notice PackNotice) {
 
 func (m *mqttProxy) OnLogB(log PackLog) {
 	if m.mode == EProxyModeReverse {
+		return
+	}
+	if !m.settingB.ProxyLog {
 		return
 	}
 	for i := 0; i < m.settingA.ReTry; i++ {

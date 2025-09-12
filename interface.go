@@ -109,11 +109,14 @@ type ProxySetting struct {
 	// TimeOut 超时时间 毫秒
 	TimeOut time.Duration
 	// ReTry 请求重试次数
-	ReTry        int
-	UID          string
-	PWD          string
-	PreFix       string
-	ProxyModules []string
+	ReTry             int
+	UID               string
+	PWD               string
+	PreFix            string
+	ProxyModules      []string
+	ProxyNotice       bool
+	ProxyRetainNotice bool
+	ProxyLog          bool
 }
 
 // NewSetting 快速新建设置 默认3秒延迟 3次重试
