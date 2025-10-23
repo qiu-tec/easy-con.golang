@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"sync"
 )
 
 type mqttMonitor struct {
@@ -19,6 +20,8 @@ type mqttMonitor struct {
 	*mqttAdapter
 	modulesChan chan string
 	discovered  []string
+	discoveredMap map[string]bool // 优化：使用map提高查找效率
+	discoveredMu   sync.RWMutex    // 保护discovered切片和map的并发安全
 	onDiscover  func(module string)
 }
 
@@ -31,6 +34,7 @@ func NewMqttMonitor(setting MonitorSetting) IMonitor {
 		MonitorSetting: setting,
 		modulesChan:    make(chan string, 100),
 		discovered:     make([]string, 0),
+		discoveredMap:  make(map[string]bool),
 		onDiscover:     setting.OnDiscover,
 	}
 	adapterSetting := setting.Setting
@@ -135,6 +139,8 @@ func (monitor *mqttMonitor) onRespDetected(message mqtt.Message) {
 }
 
 func (monitor *mqttMonitor) onLinked(_ mqtt.Client) {
+	monitor.discoveredMu.RLock()
+	defer monitor.discoveredMu.RUnlock()
 	for _, module := range monitor.discovered {
 		monitor.sub(module)
 	}
@@ -163,12 +169,17 @@ func (monitor *mqttMonitor) discover(module string) {
 	if monitor.DetectiveModules != nil && len(monitor.DetectiveModules) > 0 {
 		return
 	}
-	for _, v := range monitor.discovered {
-		if v == module {
-			return
-		}
+
+	monitor.discoveredMu.Lock()
+	// 优化：使用map进行O(1)查找
+	if monitor.discoveredMap[module] {
+		monitor.discoveredMu.Unlock()
+		return
 	}
 	monitor.discovered = append(monitor.discovered, module)
+	monitor.discoveredMap[module] = true
+	monitor.discoveredMu.Unlock()
+
 	monitor.sub(module)
 	if monitor.onDiscover != nil {
 		monitor.onDiscover(module)

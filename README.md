@@ -43,7 +43,7 @@ func main() {
 	moduleB.Req("ModuleA", "hello", nil)
   
 }
-func onStatusChanged(adapter easyCon.IAdapter, status easyCon.EStatus) {
+func onStatusChanged(status easyCon.EStatus) {
 	fmt.Println("StatusChanged", status)
 }
 

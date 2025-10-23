@@ -104,7 +104,7 @@ func Start(settingJson *C.char, length C.int, onReqCallback C.OnReqCallBack,
 		packStr := (*C.char)(C.CBytes(data))
 		C.NoticeHandler(onNoticeCallback, packStr, size)
 	}
-	setting.StatusChanged = func(adapter easyCon.IAdapter, status easyCon.EStatus) {
+	setting.StatusChanged = func(status easyCon.EStatus) {
 		if onStateChangedCallback == nil {
 			return
 		}

@@ -7,6 +7,7 @@
 package easyCon
 
 import (
+	"fmt"
 	"sync/atomic"
 	"time"
 )
@@ -176,6 +177,26 @@ func getRetainNoticeId() uint64 {
 	return atomic.AddUint64(&retainNoticeId, 1)
 }
 
+// getRespCodeName 获取EResp枚举的名称
+func getRespCodeName(code EResp) string {
+	switch code {
+	case ERespUnLinked:
+		return "ERespUnLinked"
+	case ERespSuccess:
+		return "ERespSuccess"
+	case ERespBadReq:
+		return "ERespBadReq"
+	case ERespRouteNotFind:
+		return "ERespRouteNotFind"
+	case ERespError:
+		return "ERespError"
+	case ERespTimeout:
+		return "ERespTimeout"
+	default:
+		return fmt.Sprintf("Unknown(%d)", code)
+	}
+}
+
 func newLogPack(module string, level ELogLevel, content string, err error) PackLog {
 	eStr := ""
 	if err != nil {
@@ -225,7 +246,11 @@ func newRespPack(req PackReq, code EResp, content any) PackResp {
 	pack.PType = EPTypeResp
 	pack.Content = content
 	if pack.RespCode != ERespSuccess && pack.Content != nil {
-		pack.Error = content.(error).Error()
+		if err, ok := content.(error); ok {
+			pack.Error = err.Error()
+		} else {
+			pack.Error = fmt.Sprintf("%v", content)
+		}
 	}
 	return pack
 }

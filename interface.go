@@ -90,6 +90,10 @@ type Setting struct {
 	LogMode        ELogMode
 	//PreFix 通用topic前缀 影响log notice
 	PreFix string
+	// ChannelBufferSize 各种消息通道的缓冲区大小
+	ChannelBufferSize int
+	// ConnectRetryDelay 连接重试之间的延迟
+	ConnectRetryDelay time.Duration
 }
 
 // MonitorSetting 监控器设置
@@ -122,16 +126,18 @@ type ProxySetting struct {
 // NewSetting 快速新建设置 默认3秒延迟 3次重试
 func NewSetting(module string, addr string, onReq ReqHandler, onStatusChanged StatusChangedHandler) Setting {
 	return Setting{
-		Module:        module,
-		EProtocol:     EProtocolMQTT,
-		Addr:          addr,
-		TimeOut:       time.Second * 3,
-		ReTry:         3,
-		OnReq:         onReq,
-		StatusChanged: onStatusChanged,
-		SaveErrorLog:  false,
-		LogMode:       ELogModeConsole,
-		PreFix:        "",
+		Module:            module,
+		EProtocol:         EProtocolMQTT,
+		Addr:              addr,
+		TimeOut:           time.Second * 3,
+		ReTry:             3,
+		OnReq:             onReq,
+		StatusChanged:     onStatusChanged,
+		SaveErrorLog:      false,
+		LogMode:           ELogModeConsole,
+		PreFix:            "",
+		ChannelBufferSize: 100, // 默认缓冲区大小
+		ConnectRetryDelay: time.Second, // 默认重试延迟
 	}
 }
 

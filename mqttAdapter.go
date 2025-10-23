@@ -38,15 +38,21 @@ func NewMqttAdapter(setting Setting) IAdapter {
 
 func newMqttAdapterInner(setting Setting, afterLink func(client mqtt.Client)) *mqttAdapter {
 	var adapter *mqttAdapter
+	// 使用配置的缓冲区大小，默认为100
+	bufferSize := setting.ChannelBufferSize
+	if bufferSize <= 0 {
+		bufferSize = 100
+	}
+
 	adapter = &mqttAdapter{
 		respDict:         make(map[uint64]chan PackResp),
 		mu:               sync.RWMutex{},
-		reqChan:          make(chan mqtt.Message, 100),
-		respChan:         make(chan mqtt.Message, 100),
-		noticeChan:       make(chan mqtt.Message, 100),
-		retainNoticeChan: make(chan mqtt.Message, 100),
+		reqChan:          make(chan mqtt.Message, bufferSize),
+		respChan:         make(chan mqtt.Message, bufferSize),
+		noticeChan:       make(chan mqtt.Message, bufferSize),
+		retainNoticeChan: make(chan mqtt.Message, bufferSize),
 		stopChan:         make(chan struct{}),
-		logChan:          make(chan mqtt.Message, 100),
+		logChan:          make(chan mqtt.Message, bufferSize),
 		wg:               &sync.WaitGroup{},
 	}
 
@@ -222,7 +228,7 @@ func (adapter *mqttAdapter) sendNoticeInner(route string, isRetain bool, content
 	token := adapter.client.Publish(topic, 0, isRetain, js)
 	if token.Wait() && token.Error() != nil {
 		adapter.Err("Notice send error", token.Error())
-		return err
+		return token.Error()
 	}
 	return nil
 }
@@ -364,16 +370,25 @@ func (adapter *mqttAdapter) onReqInner(req PackReq) PackResp {
 func getVersion() string {
 	// 尝试从构建信息中获取版本信息
 	if info, ok := debug.ReadBuildInfo(); ok {
+		// 首先检查主模块路径
+		if info.Main.Path != "" && (info.Main.Path == "github.com/qiu-tec/easy-con.golang" ||
+			info.Main.Path == "easy-con" || info.Main.Path == "easy-con.golang") {
+			if info.Main.Version != "" && info.Main.Version != "(devel)" {
+				return info.Main.Version
+			}
+		}
 		// 遍历所有的依赖项
 		for _, dep := range info.Deps {
-			// 如果你的包是作为一个依赖被引入的，这里可以匹配到
-			if dep.Path == "github.com/qiu-tec/easy-con.golang" {
+			// 匹配可能的包路径
+			if dep.Path == "github.com/qiu-tec/easy-con.golang" ||
+				dep.Path == "easy-con" ||
+				dep.Path == "easy-con.golang" {
 				return dep.Version
 			}
 		}
 	}
-	// 如果无法从构建信息中获取，则回退到编译时注入的 Version 变量
-	return "Unknown"
+	// 如果无法从构建信息中获取，则回退到默认版本
+	return "0.0.0"
 }
 func (adapter *mqttAdapter) onNotice(message mqtt.Message) {
 	if adapter.setting.OnNotice == nil {
@@ -433,12 +448,8 @@ func (adapter *mqttAdapter) loop() {
 				select {
 				case msg := <-adapter.respChan:
 					go adapter.onResp(msg)
-
-				case msg := <-adapter.logChan:
-					go adapter.onLog(msg)
 				case <-ch:
 					return
-
 				}
 			}
 		}()
@@ -450,7 +461,6 @@ func (adapter *mqttAdapter) loop() {
 				adapter.onRetainNotice(msg)
 			case msg := <-adapter.reqChan:
 				adapter.onReq(msg)
-
 			case msg := <-adapter.logChan:
 				adapter.onLog(msg)
 			case <-adapter.stopChan:
@@ -487,6 +497,12 @@ func (adapter *mqttAdapter) link() {
 ReLink:
 	token := adapter.client.Connect()
 	if token.Wait() && token.Error() != nil {
+		// 使用配置的重试延迟，默认为1秒
+		retryDelay := adapter.setting.ConnectRetryDelay
+		if retryDelay <= 0 {
+			retryDelay = time.Second
+		}
+		time.Sleep(retryDelay)
 		goto ReLink
 	}
 }

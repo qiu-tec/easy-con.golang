@@ -1,0 +1,14 @@
+﻿# 连接方式
+# tcp: mqtt//127.0.0.1:1883
+# ws:  ws//127.0.0.1:8083/ws
+# 支持通过mq控制broker，目前支持下面的指令
+# 主题: MqBrokerAction
+# 内容：
+#   Exit    表示退出MQBroker
+mqtt:
+ tcp: ""
+ ws: "5002"
+
+# 监控进程，当发现设置进程退出后，自动退出
+exit:
+ process: ""
