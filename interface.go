@@ -22,17 +22,22 @@ type IAdapter interface {
 	//// Init 初始化
 	//Init(setting Setting)
 
-	// Stop 停止
 	Stop()
-	// Reset 复位
+
 	Reset()
-	// Req 请求
+
 	Req(module, route string, params any) PackResp
-	// SendNotice 发送通知
+
+	ReqWithTimeout(module, route string, params any, timeout int) PackResp
+
 	SendNotice(route string, content any) error
-	// SendRetainNotice 发送保留通知
+
+	SendInternalNotice(route string, isRetain bool, content any) error
+
+	SubscribeInternalNotice(module, route string)
+
 	SendRetainNotice(route string, content any) error
-	// CleanRetainNotice 清除保留通知
+
 	CleanRetainNotice() error
 	iLogger
 }
@@ -94,6 +99,7 @@ type Setting struct {
 	ChannelBufferSize int
 	// ConnectRetryDelay 连接重试之间的延迟
 	ConnectRetryDelay time.Duration
+	IsRandomClientID  bool
 }
 
 // MonitorSetting 监控器设置
@@ -136,7 +142,7 @@ func NewSetting(module string, addr string, onReq ReqHandler, onStatusChanged St
 		SaveErrorLog:      false,
 		LogMode:           ELogModeConsole,
 		PreFix:            "",
-		ChannelBufferSize: 100, // 默认缓冲区大小
+		ChannelBufferSize: 100,         // 默认缓冲区大小
 		ConnectRetryDelay: time.Second, // 默认重试延迟
 	}
 }

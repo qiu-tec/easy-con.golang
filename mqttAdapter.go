@@ -12,24 +12,26 @@ import (
 	"fmt"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"runtime/debug"
+	"strconv"
 	"sync"
 	"time"
 )
 
 type mqttAdapter struct {
-	client           mqtt.Client
-	setting          Setting
-	respDict         map[uint64]chan PackResp
-	mu               sync.RWMutex
-	noticeChan       chan mqtt.Message
-	retainNoticeChan chan mqtt.Message
-	reqChan          chan mqtt.Message
-	respChan         chan mqtt.Message
-	stopChan         chan struct{}
-	logChan          chan mqtt.Message
-	options          *mqtt.ClientOptions
-	wg               *sync.WaitGroup
-	isLinked         bool
+	client               mqtt.Client
+	setting              Setting
+	respDict             map[uint64]chan PackResp
+	mu                   sync.RWMutex
+	noticeChan           chan mqtt.Message
+	retainNoticeChan     chan mqtt.Message
+	reqChan              chan mqtt.Message
+	respChan             chan mqtt.Message
+	stopChan             chan struct{}
+	logChan              chan mqtt.Message
+	options              *mqtt.ClientOptions
+	wg                   *sync.WaitGroup
+	isLinked             bool
+	internalNoticeTopics map[string]string
 }
 
 func NewMqttAdapter(setting Setting) IAdapter {
@@ -45,20 +47,20 @@ func newMqttAdapterInner(setting Setting, afterLink func(client mqtt.Client)) *m
 	}
 
 	adapter = &mqttAdapter{
-		respDict:         make(map[uint64]chan PackResp),
-		mu:               sync.RWMutex{},
-		reqChan:          make(chan mqtt.Message, bufferSize),
-		respChan:         make(chan mqtt.Message, bufferSize),
-		noticeChan:       make(chan mqtt.Message, bufferSize),
-		retainNoticeChan: make(chan mqtt.Message, bufferSize),
-		stopChan:         make(chan struct{}),
-		logChan:          make(chan mqtt.Message, bufferSize),
-		wg:               &sync.WaitGroup{},
+		respDict:             make(map[uint64]chan PackResp),
+		mu:                   sync.RWMutex{},
+		reqChan:              make(chan mqtt.Message, bufferSize),
+		respChan:             make(chan mqtt.Message, bufferSize),
+		noticeChan:           make(chan mqtt.Message, bufferSize),
+		retainNoticeChan:     make(chan mqtt.Message, bufferSize),
+		stopChan:             make(chan struct{}),
+		logChan:              make(chan mqtt.Message, bufferSize),
+		wg:                   &sync.WaitGroup{},
+		internalNoticeTopics: make(map[string]string),
 	}
 
 	adapter.setting = setting
 	o := mqtt.NewClientOptions().
-		SetClientID(setting.PreFix + setting.Module).
 		AddBroker(setting.Addr).
 		SetUsername(setting.UID).
 		SetPassword(setting.PWD).
@@ -89,6 +91,11 @@ func newMqttAdapterInner(setting Setting, afterLink func(client mqtt.Client)) *m
 		//如果日志回调不为空，订阅日志主题
 		if adapter.setting.OnLog != nil {
 			adapter.subscribe("Log")
+		}
+		for _, topic := range adapter.internalNoticeTopics {
+			client.Subscribe(topic, 0, func(_ mqtt.Client, message mqtt.Message) {
+				adapter.noticeChan <- message
+			})
 		}
 		if afterLink != nil {
 			afterLink(client)
@@ -131,7 +138,6 @@ func (adapter *mqttAdapter) subscribe(kind string) {
 	case "Log":
 		topic = pre + LogTopic
 		channel = adapter.logChan
-
 	}
 
 	token := adapter.client.Subscribe(topic, 0, func(_ mqtt.Client, message mqtt.Message) {
@@ -170,7 +176,34 @@ func (adapter *mqttAdapter) Req(module, route string, params any) PackResp {
 	}
 	pack := newReqPack(adapter.setting.Module, module, route, params)
 	for retry := adapter.setting.ReTry; retry >= 0; retry-- {
-		resp := adapter.reqInner(pack)
+		resp := adapter.reqInner(pack, 0)
+		switch resp.RespCode {
+		case ERespTimeout:
+			continue
+		default:
+			return resp
+		}
+	}
+	p := PackResp{
+		PackReq:  pack,
+		RespTime: "",
+		RespCode: ERespTimeout,
+		Error:    "Req timeout",
+	}
+	p.Content = nil
+	return p
+}
+
+// ReqWithTimeout Send Request and wait response for timeout milliseconds
+func (adapter *mqttAdapter) ReqWithTimeout(module, route string, params any, timeout int) PackResp {
+	if !adapter.isLinked {
+		return PackResp{
+			RespCode: ERespUnLinked,
+		}
+	}
+	pack := newReqPack(adapter.setting.Module, module, route, params)
+	for retry := adapter.setting.ReTry; retry >= 0; retry-- {
+		resp := adapter.reqInner(pack, timeout)
 		switch resp.RespCode {
 		case ERespTimeout:
 			continue
@@ -203,8 +236,27 @@ func (adapter *mqttAdapter) SendNotice(route string, content any) error {
 
 // sendNoticeInner Send Notice inner
 func (adapter *mqttAdapter) sendNoticeInner(route string, isRetain bool, content any) error {
+	js, err := adapter.getNoticePack(route, isRetain, content)
+	if err != nil {
+		return err
+	}
+
+	topic := adapter.setting.PreFix + NoticeTopic
+	if isRetain {
+		topic = adapter.setting.PreFix + RetainNoticeTopic
+	}
+
+	token := adapter.client.Publish(topic, 0, isRetain, js)
+	if token.Wait() && token.Error() != nil {
+		adapter.Err("Notice send error", token.Error())
+		return token.Error()
+	}
+	return nil
+}
+
+func (adapter *mqttAdapter) getNoticePack(route string, isRetain bool, content any) ([]byte, error) {
 	if !adapter.isLinked {
-		return errors.New("adapter is not linked")
+		return nil, errors.New("adapter is not linked")
 	}
 	var pack PackNotice
 	if isRetain {
@@ -216,23 +268,47 @@ func (adapter *mqttAdapter) sendNoticeInner(route string, isRetain bool, content
 	js, err := json.Marshal(pack)
 	if err != nil {
 		adapter.Err("Notice marshal error", err)
-		return err
+		return nil, err
 	}
-	topic := adapter.setting.PreFix + NoticeTopic
-	if isRetain {
-		topic = adapter.setting.PreFix + RetainNoticeTopic
+	if content == "" && isRetain {
+		js = nil
+	}
+	return js, nil
+}
+
+// SendInternalNotice Send Internal Notice topic is {preFix}{Notice}/{ModuleName}/Route
+func (adapter *mqttAdapter) SendInternalNotice(route string, isRetain bool, content any) error {
+	js, err := adapter.getNoticePack(route, isRetain, content)
+	if err != nil {
+		return err
 	}
 	if route == "" && isRetain {
 		js = nil
 	}
+
+	topic := adapter.setting.PreFix + NoticeTopic + "/" + adapter.setting.Module + "/" + route
+
 	token := adapter.client.Publish(topic, 0, isRetain, js)
 	if token.Wait() && token.Error() != nil {
-		adapter.Err("Notice send error", token.Error())
+		adapter.Err("InternalNotice send error", token.Error())
 		return token.Error()
 	}
 	return nil
 }
 
+// SubscribeInternalNotice Subscribe InternalNotice if route is "", route will be # and will subscribe all
+func (adapter *mqttAdapter) SubscribeInternalNotice(moduleName, route string) {
+	if route == "" {
+		route = "#"
+	}
+	topic := adapter.setting.PreFix + NoticeTopic + "/" + moduleName + "/" + route
+	adapter.mu.Lock()
+	adapter.internalNoticeTopics[topic] = topic
+	adapter.mu.Unlock()
+	adapter.client.Subscribe(topic, 0, func(_ mqtt.Client, message mqtt.Message) {
+		adapter.noticeChan <- message
+	})
+}
 func (adapter *mqttAdapter) Debug(content string) {
 	pack := newLogPack(adapter.setting.Module, ELogLevelDebug, content, nil)
 	adapter.sendLog(pack)
@@ -248,7 +324,11 @@ func (adapter *mqttAdapter) Err(content string, err error) {
 	adapter.sendLog(pack)
 }
 
-func (adapter *mqttAdapter) reqInner(pack PackReq) PackResp {
+func (adapter *mqttAdapter) reqInner(pack PackReq, timeout int) PackResp {
+	tsp := adapter.setting.TimeOut
+	if timeout > 0 {
+		tsp = time.Duration(timeout) * time.Millisecond
+	}
 	raw, err := json.Marshal(pack)
 	if err != nil {
 		adapter.Err(fmt.Sprintf("REQ %d json error\r\n", pack.Id), err)
@@ -275,7 +355,7 @@ func (adapter *mqttAdapter) reqInner(pack PackReq) PackResp {
 		delete(adapter.respDict, pack.Id)
 		adapter.mu.Unlock()
 		return resp
-	case <-time.After(adapter.setting.TimeOut):
+	case <-time.After(tsp):
 		adapter.mu.Lock()
 		delete(adapter.respDict, pack.Id)
 		adapter.mu.Unlock()
@@ -493,6 +573,12 @@ func (adapter *mqttAdapter) loop() {
 
 func (adapter *mqttAdapter) link() {
 	go adapter.loop()
+	suffix := ""
+	if adapter.setting.IsRandomClientID {
+		suffix = "." + strconv.FormatInt(time.Now().UnixNano(), 10)
+	}
+
+	adapter.options.SetClientID(adapter.setting.PreFix + adapter.setting.Module + suffix)
 	adapter.client = mqtt.NewClient(adapter.options)
 ReLink:
 	token := adapter.client.Connect()
