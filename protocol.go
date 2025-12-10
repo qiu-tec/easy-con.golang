@@ -248,6 +248,7 @@ func newRespPack(req PackReq, code EResp, content any) PackResp {
 	if pack.RespCode != ERespSuccess && pack.Content != nil {
 		if err, ok := content.(error); ok {
 			pack.Error = err.Error()
+			pack.Content = nil
 		} else {
 			pack.Error = fmt.Sprintf("%v", content)
 		}

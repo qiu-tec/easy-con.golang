@@ -100,6 +100,7 @@ type Setting struct {
 	// ConnectRetryDelay 连接重试之间的延迟
 	ConnectRetryDelay time.Duration
 	IsRandomClientID  bool
+	IsWaitLink        bool // IsWaitLink 等待连接
 }
 
 // MonitorSetting 监控器设置
@@ -144,6 +145,7 @@ func NewSetting(module string, addr string, onReq ReqHandler, onStatusChanged St
 		PreFix:            "",
 		ChannelBufferSize: 100,         // 默认缓冲区大小
 		ConnectRetryDelay: time.Second, // 默认重试延迟
+		IsWaitLink:        true,
 	}
 }
 

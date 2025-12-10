@@ -114,7 +114,11 @@ func newMqttAdapterInner(setting Setting, afterLink func(client mqtt.Client)) *m
 		}
 	}
 	adapter.options = o
-	adapter.link()
+	if adapter.setting.IsWaitLink {
+		adapter.link()
+	} else {
+		go adapter.link()
+	}
 	return adapter
 }
 
@@ -373,21 +377,21 @@ func (adapter *mqttAdapter) onResp(message mqtt.Message) {
 	if err != nil {
 		adapter.Err("RESP unmarshal error", err)
 	}
-	if pack.RespCode != ERespSuccess && pack.Content != nil {
-
-		e, b := pack.Content.(error)
-		if b {
-			pack.Error = e.Error()
-		} else {
-			s, b := pack.Content.(string)
-			if b {
-				pack.Error = s
-			} else {
-				pack.Error = fmt.Sprintf("%v", pack.Content)
-			}
-		}
-		pack.Content = nil
-	}
+	//if pack.RespCode != ERespSuccess && pack.Content != nil {
+	//
+	//	e, b := pack.Content.(error)
+	//	if b {
+	//		pack.Error = e.Error()
+	//	} else {
+	//		s, b := pack.Content.(string)
+	//		if b {
+	//			pack.Error = s
+	//		} else {
+	//			pack.Error = fmt.Sprintf("%v", pack.Content)
+	//		}
+	//	}
+	//	pack.Content = nil
+	//}
 	adapter.mu.RLock()
 	c, b := adapter.respDict[pack.Id]
 	if b {
