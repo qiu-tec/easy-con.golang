@@ -25,9 +25,8 @@ func TestMqttClient(t *testing.T) {
 	addr := "ws://127.0.0.1:5002/ws"
 	setting := easyCon.NewSetting("ModuleA", addr, onReq, onStatusChanged)
 	//sync mode test
-	setting.EProtocol = easyCon.EProtocolMQTTSync
-	setting.UID = "admin"
-	setting.PWD = "ams@urit2024"
+	setting.EProtocol = easyCon.EProtocolMQTT
+	setting.IsWaitLink = false
 	setting.LogMode = easyCon.ELogModeUpload
 	moduleA := easyCon.NewMqttAdapter(setting)
 	setting.Module = "ModuleB"
