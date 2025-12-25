@@ -57,8 +57,8 @@ type IAdapter interface {
 	CleanRetainNotice(route string) error
 
 	Publish(topic string, isRetain bool, pack IPack) error
-	//getEngineCallback() EngineCallback
 
+	GetEngineCallback() EngineCallback
 	iLogger
 }
 

@@ -8,7 +8,6 @@ package easyCon
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 )
 
@@ -22,6 +21,7 @@ type CgoBroker struct {
 func NewCgoBroker() CgoBroker {
 	return CgoBroker{
 		clients: make(map[string]func([]byte)),
+		topics:  make(map[string]map[string]interface{}),
 	}
 }
 func (broker *CgoBroker) err(e error) {
@@ -34,7 +34,7 @@ func (broker *CgoBroker) Publish(cgoRaw []byte) error {
 	if err != nil {
 		broker.err(err)
 	}
-	if topic == "Broker" { //需要broker处理的请求
+	if topic == "Request/Broker" { //需要broker处理的请求
 		pack, e := unmarshalPack(EPTypeReq, raw)
 		if e != nil {
 			broker.err(e)
@@ -60,28 +60,28 @@ func (broker *CgoBroker) onSend(topic string, cgoRaw []byte) {
 	defer broker.lock.RUnlock()
 	modules, ok := broker.topics[topic]
 
-	if !ok {
-		broker.err(fmt.Errorf("unknown topic %s", topic))
-	}
-	for module := range modules {
-		f, b := broker.clients[module]
-		if !b {
-			broker.err(fmt.Errorf("unknown module %s", module))
+	if ok {
+		for module := range modules {
+			f, b := broker.clients[module]
+			if !b {
+				broker.err(fmt.Errorf("unknown module %s", module))
+			}
+			f(cgoRaw)
 		}
-		f(cgoRaw)
 	}
-	monitorTopic := broker.getMonitorTopic(topic)
+
+	monitorTopic := getMonitorTopic(topic)
 	modules, ok = broker.topics[monitorTopic]
-	if !ok {
-		broker.err(fmt.Errorf("unknown topic %s", topic))
-	}
-	for module := range modules {
-		f, b := broker.clients[module]
-		if !b {
-			broker.err(fmt.Errorf("unknown module %s", module))
+	if ok {
+		for module := range modules {
+			f, b := broker.clients[module]
+			if b {
+				f(cgoRaw)
+			}
+
 		}
-		f(cgoRaw)
 	}
+
 }
 func (broker *CgoBroker) onReq(pack PackReq) (EResp, any) {
 	switch pack.Route {
@@ -98,10 +98,4 @@ func (broker *CgoBroker) onReq(pack PackReq) (EResp, any) {
 	default:
 		return ERespRouteNotFind, nil
 	}
-}
-
-func (broker *CgoBroker) getMonitorTopic(topic string) string {
-	sections := strings.Split(topic, "/")
-	sections = sections[:len(sections)-1]
-	return strings.Join(sections, "/") + "#"
 }

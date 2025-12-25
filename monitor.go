@@ -6,22 +6,27 @@
 
 package easyCon
 
-//type monitor struct {
-//	IAdapter
-//}
-
 func NewMqttMonitor(setting MqttSetting, callback AdapterCallBack) IAdapter {
 	setting.IsRandomClientID = true
 	setting.IsWaitLink = false
-	setting.Module = "#"
+	setting.Module = "Monitor"
 	f := callback.OnLinked
 	callback.OnLinked = func(adapter IAdapter) {
-
 		if callback.OnNoticeRec != nil {
 			adapter.SubscribeNotice("#", false)
 		}
 		if callback.OnRetainNoticeRec != nil {
 			adapter.SubscribeNotice("#", true)
+		}
+		if callback.OnReqRec != nil {
+			adapter.GetEngineCallback().OnSubscribe(BuildReqTopic(setting.PreFix, "#"), EPTypeReq, func(pack IPack) {
+				callback.OnReqRec(*pack.(*PackReq))
+			})
+		}
+		if callback.OnRespRec != nil {
+			adapter.GetEngineCallback().OnSubscribe(BuildRespTopic(setting.PreFix, "#"), EPTypeResp, func(pack IPack) {
+				callback.OnRespRec(*pack.(*PackResp))
+			})
 		}
 		if f != nil {
 			f(adapter)
@@ -30,21 +35,30 @@ func NewMqttMonitor(setting MqttSetting, callback AdapterCallBack) IAdapter {
 
 	return newMqttAdapterInner(setting, callback)
 }
-func NewCGoMonitor(setting CoreSetting, callback AdapterCallBack, onRead func() []byte, onWrite func([]byte) error) IAdapter {
+func NewCGoMonitor(setting CoreSetting, callback AdapterCallBack, onWrite func([]byte) error) (IAdapter, func([]byte)) {
 	setting.IsWaitLink = false
-	setting.Module = "#"
 	f := callback.OnLinked
 	callback.OnLinked = func(adapter IAdapter) {
-
 		if callback.OnNoticeRec != nil {
 			adapter.SubscribeNotice("#", false)
 		}
 		if callback.OnRetainNoticeRec != nil {
 			adapter.SubscribeNotice("#", true)
 		}
+		if callback.OnReqRec != nil {
+			adapter.GetEngineCallback().OnSubscribe(BuildReqTopic(setting.PreFix, "#"), EPTypeReq, func(pack IPack) {
+				callback.OnReqRec(*pack.(*PackReq))
+			})
+		}
+		if callback.OnRespRec != nil {
+			adapter.GetEngineCallback().OnSubscribe(BuildRespTopic(setting.PreFix, "#"), EPTypeResp, func(pack IPack) {
+				callback.OnRespRec(*pack.(*PackResp))
+			})
+		}
+
 		if f != nil {
 			f(adapter)
 		}
 	}
-	return NewCgoAdapter(setting, callback, onRead, onWrite)
+	return NewCgoAdapter(setting, callback, onWrite)
 }

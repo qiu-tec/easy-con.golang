@@ -8,6 +8,7 @@ package easyCon
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -24,7 +25,7 @@ type proxy struct {
 	proxyLog          bool
 }
 
-func NewCgoMqttProxy(setting MqttProxySetting, onRead func() []byte, onWrite func([]byte) error) IProxy {
+func NewCgoMqttProxy(setting MqttProxySetting, onWrite func([]byte) error) (IProxy, func([]byte)) {
 
 	p := &proxy{
 		mode:              EProxyModeForward,
@@ -44,12 +45,12 @@ func NewCgoMqttProxy(setting MqttProxySetting, onRead func() []byte, onWrite fun
 		IsWaitLink:        false,
 		IsSync:            false,
 	}
-	a := NewCGoMonitor(sa, AdapterCallBack{
+	a, f := NewCGoMonitor(sa, AdapterCallBack{
 		OnReqRec:          p.onReqA,
 		OnNoticeRec:       p.onNoticeA,
 		OnRetainNoticeRec: p.onRetainNoticeA,
 		OnLogRec:          p.onLogA,
-	}, onRead, onWrite)
+	}, onWrite)
 	sb := NewDefaultMqttSetting("#", setting.Addr)
 	sb.LogMode = ELogModeNone
 	sb.PreFix = setting.PreFix
@@ -68,7 +69,7 @@ func NewCgoMqttProxy(setting MqttProxySetting, onRead func() []byte, onWrite fun
 	p.b = b
 	p.sa = sa
 	p.sb = sb.CoreSetting
-	return p
+	return p, f
 }
 
 func (p *proxy) Stop() {
@@ -177,4 +178,9 @@ func (m *proxy) onReqB(pack PackReq) (EResp, any) {
 	resp := m.a.Req(pack.To, pack.Route, pack.Content)
 	return resp.RespCode, resp.Content
 
+}
+func getMonitorTopic(topic string) string {
+	sections := strings.Split(topic, "/")
+	sections = sections[:len(sections)-1]
+	return strings.Join(sections, "/") + "/#"
 }

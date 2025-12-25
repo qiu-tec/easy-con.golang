@@ -231,6 +231,19 @@ const (
 	ELogLevelError   ELogLevel = "ERROR"
 )
 
+func GetStatusName(status EStatus) string {
+	switch status {
+	case EStatusStopped:
+		return "Stopped"
+	case EStatusLinkLost:
+		return "LinkLost"
+	case EStatusLinked:
+		return "Linked"
+	case EStatusConnecting:
+		return "Connecting"
+	}
+	return "Unknown"
+}
 func getReqId() uint64 {
 	return atomic.AddUint64(&reqId, 1)
 }
@@ -386,6 +399,14 @@ func unmarshalPack(pType EPType, data []byte) (IPack, error) {
 		if err != nil {
 			return nil, err
 		}
+		return &pack, nil
+	case EPTypeLog:
+		var pack PackLog
+		err := json.Unmarshal(data, &pack)
+		if err != nil {
+			return nil, err
+		}
+		return &pack, nil
 	}
 	return nil, fmt.Errorf("unknown pack type %s", pType)
 }

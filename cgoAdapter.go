@@ -18,17 +18,20 @@ type topicBack struct {
 }
 type cgoAdapter struct {
 	*coreAdapter
-	topics map[string]topicBack
-	cgoClient
+	topics   map[string]topicBack
+	onWrite  func([]byte) error
+	readChan chan []byte
 }
 
-func NewCgoAdapter(setting CoreSetting, callback AdapterCallBack, onRead func() []byte, onWrite func([]byte) error) IAdapter {
+func (adapter *cgoAdapter) onRead(raw []byte) {
+	adapter.readChan <- raw
+}
+func NewCgoAdapter(setting CoreSetting, callback AdapterCallBack, onWrite func([]byte) error) (IAdapter, func([]byte)) {
 
 	adapter := &cgoAdapter{
-		cgoClient: cgoClient{
-			onRead:  onRead,
-			onWrite: onWrite,
-		},
+		onWrite:  onWrite,
+		topics:   make(map[string]topicBack),
+		readChan: make(chan []byte, setting.ChannelBufferSize),
 	}
 	ecb := EngineCallback{
 		OnLink:      func() { return },
@@ -38,57 +41,84 @@ func NewCgoAdapter(setting CoreSetting, callback AdapterCallBack, onRead func() 
 	}
 
 	adapter.coreAdapter = newCoreAdapter(setting, ecb, callback)
-	adapter.readLoop()
-	return adapter
+	go adapter.readLoop()
+	adapter.onConnected()
+	return adapter, adapter.onRead
 }
 
 type IClient struct {
 	OnSubscribe func(topic string, pType EPType, f func(IPack))
 	OnPublish   func(topic string, retain bool, pack IPack) error
 }
-type cgoClient struct {
-	onRead  func() []byte
-	onWrite func([]byte) error
-}
+
+//type cgoClient struct {
+//	onRead  func() []byte
+//	onWrite func([]byte) error
+//}
 
 func (adapter *cgoAdapter) readLoop() {
 	for {
-		rawPack := adapter.onRead()
-		topic, raw, err := unMarshalCgoPack(rawPack)
-		if err != nil {
-			adapter.Err("Deserialize error", err)
+		select {
+		case <-adapter.stopChan:
+			return
+		case rawPack := <-adapter.readChan:
+			topic, raw, err := unMarshalCgoPack(rawPack)
+			if err != nil {
+				adapter.Err("Deserialize error", err)
+				continue
+			}
+			adapter.mu.Lock()
+			t, b := adapter.topics[topic]
+			adapter.mu.Unlock()
+			if b {
+				adapter.callFunc(t, raw, topic)
+			} else {
+				tt := getMonitorTopic(topic)
+				adapter.mu.Lock()
+
+				t, b = adapter.topics[tt]
+				adapter.mu.Unlock()
+				if b {
+					adapter.callFunc(t, raw, topic)
+				}
+
+			}
+
+		default:
 			continue
 		}
-		t, b := adapter.topics[topic]
-		var pack IPack
-		if b {
-			switch t.EType {
-			case EPTypeReq:
-				pack, err = unmarshalPack(EPTypeReq, raw)
-				if err != nil {
-					adapter.Err("Deserialize Req error", err)
-				}
-			case EPTypeResp:
-				pack, err = unmarshalPack(EPTypeResp, raw)
-				if err != nil {
-					adapter.Err("Deserialize Resp error", err)
-				}
-			case EPTypeNotice:
-				pack, err = unmarshalPack(EPTypeNotice, raw)
-				if err != nil {
-					adapter.Err("Deserialize Notice error", err)
-				}
-			case EPTypeLog:
-				pack, err = unmarshalPack(EPTypeLog, raw)
-				if err != nil {
-					adapter.Err("Deserialize Log error", err)
-				}
-			default:
-				adapter.Err("unknown topic", fmt.Errorf("unknown topic %s", topic))
-			}
-		}
-		t.Func(pack)
+
 	}
+}
+
+func (adapter *cgoAdapter) callFunc(t topicBack, raw []byte, topic string) {
+	var err error
+	var pack IPack
+	switch t.EType {
+	case EPTypeReq:
+		pack, err = unmarshalPack(EPTypeReq, raw)
+		if err != nil {
+			adapter.Err("Deserialize Req error", err)
+		}
+	case EPTypeResp:
+		pack, err = unmarshalPack(EPTypeResp, raw)
+		if err != nil {
+			adapter.Err("Deserialize Resp error", err)
+		}
+	case EPTypeNotice:
+		pack, err = unmarshalPack(EPTypeNotice, raw)
+		if err != nil {
+			adapter.Err("Deserialize Notice error", err)
+		}
+	case EPTypeLog:
+		pack, err = unmarshalPack(EPTypeLog, raw)
+		if err != nil {
+			adapter.Err("Deserialize Log error", err)
+		}
+	default:
+		adapter.Err("unknown topic", fmt.Errorf("unknown topic %s", topic))
+	}
+	t.Func(pack)
 }
 func marshalCgoPack(topic string, raw []byte) []byte {
 	topicBytes := []byte(topic)
@@ -111,7 +141,9 @@ func unMarshalCgoPack(pack []byte) (string, []byte, error) {
 
 }
 func (adapter *cgoAdapter) onSubscribe(topic string, pType EPType, f func(IPack)) {
+	adapter.mu.Lock()
 	adapter.topics[topic] = topicBack{EType: pType, Func: f}
+	adapter.mu.Unlock()
 	pack := newReqPack(adapter.setting.Module, "Broker", "Subscribe", topic)
 	js, _ := pack.Raw()
 	cgoRaw := marshalCgoPack(BuildReqTopic(adapter.setting.PreFix, "Broker"), js)

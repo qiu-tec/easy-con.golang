@@ -224,8 +224,6 @@ func (adapter *coreAdapter) reqInner(pack PackReq, timeout int) PackResp {
 			RespCode: ERespError,
 			Error:    e.Error(),
 		}
-	} else {
-		adapter.sendLog(newLogPack(adapter.setting.Module, ELogLevelError, fmt.Sprintf("onSendReq is nil, not supported"), nil))
 	}
 	respChan := make(chan PackResp)
 	adapter.mu.Lock()
@@ -441,7 +439,7 @@ func (adapter *coreAdapter) sendLog(pack PackLog) {
 	if adapter.setting.LogMode == ELogModeConsole || adapter.setting.LogMode == ELogModeAll {
 		printLog(pack)
 	}
-	if adapter.setting.LogMode == ELogModeUpload || adapter.setting.LogMode == ELogModeAll {
+	if adapter.setting.LogMode != ELogModeUpload && adapter.setting.LogMode != ELogModeAll {
 		return
 	}
 	topic := adapter.setting.PreFix + LogTopic
@@ -527,4 +525,7 @@ func (adapter *coreAdapter) onConnectionLost(err error) {
 		adapter.adapterCallback.OnStatusChanged(EStatusLinkLost)
 	}
 	fmt.Println("Connection lost because", err)
+}
+func (adapter *coreAdapter) GetEngineCallback() EngineCallback {
+	return adapter.engineCallback
 }
