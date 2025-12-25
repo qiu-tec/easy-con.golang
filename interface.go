@@ -16,12 +16,30 @@ type RespHandler func(pack PackResp)
 type NoticeHandler func(PackNotice)
 type StatusChangedHandler func(status EStatus)
 type LogHandler func(PackLog)
+type PublishHandler func(topic string, isRetain bool, pack IPack) error
+type SubscribeHandler func(topic string, packType EPType, f func(IPack))
+
+// EngineCallback 引擎回调
+type EngineCallback struct {
+	OnStop      func() (bool, error) //<-
+	OnLink      func()
+	OnSubscribe SubscribeHandler
+	OnPublish   PublishHandler
+}
+type AdapterCallBack struct {
+	OnReqRec          ReqHandler
+	OnRespRec         RespHandler
+	OnNoticeRec       NoticeHandler
+	OnRetainNoticeRec NoticeHandler
+	OnLogRec          LogHandler
+	OnExiting         func()
+	OnGetVersion      func() []string
+	OnLinked          func(adapter IAdapter)
+	OnStatusChanged   StatusChangedHandler
+}
 
 // IAdapter 访问器接口
 type IAdapter interface {
-	//// Init 初始化
-	//Init(setting Setting)
-
 	Stop()
 
 	Reset()
@@ -32,30 +50,32 @@ type IAdapter interface {
 
 	SendNotice(route string, content any) error
 
-	SendInternalNotice(route string, isRetain bool, content any) error
-
-	SubscribeInternalNotice(module, route string)
+	SubscribeNotice(route string, isRetain bool)
 
 	SendRetainNotice(route string, content any) error
 
-	CleanRetainNotice() error
+	CleanRetainNotice(route string) error
+
+	Publish(topic string, isRetain bool, pack IPack) error
+	//getEngineCallback() EngineCallback
+
 	iLogger
 }
 
-type IMonitor interface {
-	IAdapter
-	//RelayResp 转发响应
-	RelayResp(req PackReq, respCode EResp, content any)
-
-	// RelayNotice 转发通知
-	RelayNotice(notice PackNotice) error
-	// RelayRetainNotice 转发保留通知
-	RelayRetainNotice(notice PackNotice) error
-	// RelayLog 转发日志
-	RelayLog(log PackLog) error
-	// Discover 发现
-	Discover(module string)
-}
+//	type IMonitor interface {
+//		IAdapter
+//		////RelayResp 转发响应
+//		//RelayResp(req PackReq, respCode EResp, content any)
+//		//// RelayNotice 转发通知
+//		//RelayNotice(notice PackNotice) error
+//		//// RelayRetainNotice 转发保留通知
+//		//RelayRetainNotice(notice PackNotice) error
+//		//// RelayLog 转发日志
+//		//RelayLog(log PackLog) error
+//
+//		// Discover 发现
+//		Discover(module string)
+//	}
 type IProxy interface {
 	// Stop 停止
 	Stop()
@@ -71,90 +91,74 @@ type iLogger interface {
 	Err(content string, err error)
 }
 
-// Setting 设置
-type Setting struct {
+// MqttSetting 设置
+type MqttSetting struct {
+	CoreSetting
+	// Addr 访问地址
+	Addr             string
+	UID              string
+	PWD              string
+	IsRandomClientID bool
+}
+
+// CoreSetting 设置
+type CoreSetting struct {
 	Module string
 	// EProtocol 协议
 	EProtocol EProtocol
-	// Addr 访问地址
-	Addr string
 	// TimeOut 超时时间 毫秒
 	TimeOut time.Duration
 	// ReTry 请求重试次数
-	ReTry          int
-	OnReq          ReqHandler
-	OnNotice       NoticeHandler
-	OnRetainNotice NoticeHandler
-	OnLog          LogHandler
-	OnExiting      func()
-	OnGetVersion   func() []string
-	StatusChanged  StatusChangedHandler
-	UID            string
-	PWD            string
-	SaveErrorLog   bool
-	LogMode        ELogMode
+	ReTry        int
+	SaveErrorLog bool
+	LogMode      ELogMode
 	//PreFix 通用topic前缀 影响log notice
 	PreFix string
 	// ChannelBufferSize 各种消息通道的缓冲区大小
 	ChannelBufferSize int
 	// ConnectRetryDelay 连接重试之间的延迟
 	ConnectRetryDelay time.Duration
-	IsRandomClientID  bool
 	IsWaitLink        bool // IsWaitLink 等待连接
 }
 
-// MonitorSetting 监控器设置
-type MonitorSetting struct {
-	Setting
-	DetectiveModules []string
-	OnReqDetected    OnReqHandler
-	OnRespDetected   RespHandler
-	OnDiscover       func(module string)
-}
+//type MonitorCallBack struct {
+//	OnReqDetected  OnReqHandler
+//	OnRespDetected RespHandler
+//	//OnDiscover       func(module string)
+//	OnNotice         NoticeHandler
+//	OnRetainNotice   NoticeHandler
+//	OnInternalNotice NoticeHandler
+//	OnLog            LogHandler
+//}
 
-// ProxySetting 代理设置
-type ProxySetting struct {
-
+// MqttProxySetting 代理设置
+type MqttProxySetting struct {
 	// Addr 访问地址
 	Addr string
 	// TimeOut 超时时间 毫秒
 	TimeOut time.Duration
 	// ReTry 请求重试次数
-	ReTry             int
-	UID               string
-	PWD               string
-	PreFix            string
-	ProxyModules      []string
-	ProxyNotice       bool
-	ProxyRetainNotice bool
-	ProxyLog          bool
+	ReTry  int
+	UID    string
+	PWD    string
+	PreFix string
 }
 
-// NewSetting 快速新建设置 默认3秒延迟 3次重试
-func NewSetting(module string, addr string, onReq ReqHandler, onStatusChanged StatusChangedHandler) Setting {
-	return Setting{
-		Module:            module,
-		EProtocol:         EProtocolMQTT,
-		Addr:              addr,
-		TimeOut:           time.Second * 3,
-		ReTry:             3,
-		OnReq:             onReq,
-		StatusChanged:     onStatusChanged,
-		SaveErrorLog:      false,
-		LogMode:           ELogModeConsole,
-		PreFix:            "",
-		ChannelBufferSize: 100,         // 默认缓冲区大小
-		ConnectRetryDelay: time.Second, // 默认重试延迟
-		IsWaitLink:        true,
-	}
-}
-
-// NewMonitorSetting 快速监测器建设置
-func NewMonitorSetting(setting Setting, detectiveModules []string, onReqDetected OnReqHandler, onRespDetected RespHandler) MonitorSetting {
-	return MonitorSetting{
-		Setting:          setting,
-		DetectiveModules: detectiveModules,
-		OnReqDetected:    onReqDetected,
-		OnRespDetected:   onRespDetected,
+// NewDefaultMqttSetting 快速新建设置 默认3秒延迟 3次重试
+func NewDefaultMqttSetting(module string, addr string) MqttSetting {
+	return MqttSetting{
+		CoreSetting: CoreSetting{
+			Module:            module,
+			EProtocol:         EProtocolMQTT,
+			TimeOut:           time.Second * 3,
+			ReTry:             3,
+			SaveErrorLog:      false,
+			LogMode:           ELogModeConsole,
+			PreFix:            "",
+			ChannelBufferSize: 100,         // 默认缓冲区大小
+			ConnectRetryDelay: time.Second, // 默认重试延迟
+			IsWaitLink:        true,
+		},
+		Addr: addr,
 	}
 }

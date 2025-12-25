@@ -15,7 +15,7 @@ import (
 )
 
 func TestExpress(t *testing.T) {
-	setting := easyCon.NewSetting("ModuleA", "ws://127.0.0.1:5002/ws", onReq, onStatusChanged)
+	setting := easyCon.NewDefaultMqttSetting("ModuleA", "ws://127.0.0.1:5002/ws", onReq, onStatusChanged)
 	moduleA := easyCon.NewMqttAdapter(setting)
 	setting.Module = "ModuleB"
 	moduleB := easyCon.NewMqttAdapter(setting)

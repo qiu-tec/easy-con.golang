@@ -8,212 +8,193 @@ package easyCon
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 )
 
-type mqttProxy struct {
-	a        IMonitor
-	b        IMonitor
+type proxy struct {
+	a        IAdapter
+	b        IAdapter
 	mode     EProxyMode
-	settingA ProxySetting
-	settingB ProxySetting
-	Id       string
+	settingA MqttProxySetting
+	settingB MqttProxySetting
+
+	proxyModules      []string
+	proxyNotice       bool
+	proxyRetainNotice bool
+	proxyLog          bool
 }
 
-// retryWithBackoff 执行重试逻辑
-func (m *mqttProxy) retryWithBackoff(operation func() error, retries int, timeout time.Duration, operationName string) bool {
-	for i := 0; i < retries; i++ {
-		if err := operation(); err != nil {
-			fmt.Printf("[%s]: %s failed (attempt %d/%d): %v\r\n",
-				time.Now().Format("15:04:05.000"), operationName, i+1, retries, err)
-			if i < retries-1 {
-				time.Sleep(timeout)
-			}
-			continue
-		}
-		return true
+func NewMqttProxy(settingA, settingB MqttProxySetting, mode EProxyMode, proxyNotice, ProxyRetainNotice, ProxyLog bool, ProxyModules []string) IProxy {
+	p := &proxy{
+		mode:              mode,
+		settingA:          settingA,
+		settingB:          settingB,
+		proxyModules:      ProxyModules,
+		proxyNotice:       proxyNotice,
+		proxyRetainNotice: ProxyRetainNotice,
+		proxyLog:          ProxyLog,
 	}
-	fmt.Printf("[%s]: %s failed after %d attempts\r\n",
-		time.Now().Format("15:04:05.000"), operationName, retries)
-	return false
-}
 
-func NewMqttProxy(settingA, settingB ProxySetting, mode EProxyMode) IProxy {
-	proxy := &mqttProxy{mode: mode, settingA: settingA, settingB: settingB}
-	proxy.Id = strconv.FormatInt(time.Now().UnixNano(), 10)
-	sa := NewSetting("ProxyA"+proxy.Id, settingA.Addr, nil, nil)
+	sa := NewDefaultMqttSetting("Proxy", settingA.Addr)
+	sa.IsRandomClientID = true
 	sa.LogMode = ELogModeNone
 	sa.PreFix = settingA.PreFix
 	sa.ReTry = settingA.ReTry
 	sa.TimeOut = settingA.TimeOut
 	sa.PWD = settingA.PWD
 	sa.UID = settingA.UID
-	sa.OnNotice = proxy.OnNoticeA
-	sa.OnRetainNotice = proxy.OnRetainNoticeA
-	sa.OnLog = proxy.OnLogA
 
-	monitorSettingA := NewMonitorSetting(sa, settingA.ProxyModules, proxy.OnReqDetectedA, nil)
-	monitorSettingA.OnDiscover = proxy.onDiscoverA
-
-	sb := NewSetting("ProxyB"+proxy.Id, settingB.Addr, nil, nil)
+	cba := AdapterCallBack{
+		OnReqRec:          p.onReqA,
+		OnRetainNoticeRec: p.OnRetainNoticeA,
+		OnNoticeRec:       p.OnNoticeA,
+		OnLogRec:          p.OnLogA,
+	}
+	sb := NewDefaultMqttSetting("Proxy", settingB.Addr)
 	sb.LogMode = ELogModeNone
 	sb.PreFix = settingB.PreFix
 	sb.ReTry = settingB.ReTry
 	sb.TimeOut = settingB.TimeOut
 	sb.PWD = settingB.PWD
 	sb.UID = settingB.UID
-	sb.OnNotice = proxy.OnNoticeB
-	sb.OnRetainNotice = proxy.OnRetainNoticeB
-	sb.OnLog = proxy.OnLogB
-	monitorSettingB := NewMonitorSetting(sb, settingB.ProxyModules, proxy.OnReqDetectedB, nil)
-	monitorSettingB.OnDiscover = proxy.onDiscoverB
 
-	a := NewMqttMonitor(monitorSettingA)
-	b := NewMqttMonitor(monitorSettingB)
-	proxy.a = a
-	proxy.b = b
+	cbb := AdapterCallBack{
+		OnReqRec:          p.onReqB,
+		OnRetainNoticeRec: p.OnRetainNoticeB,
+		OnNoticeRec:       p.OnNoticeB,
+		OnLogRec:          p.OnLogB,
+	}
+	//fmt.Println(cbb)
+	a := NewMqttMonitor(sa, cba)
+	b := NewMqttMonitor(sb, cbb)
+	p.a = a
+	p.b = b
 
-	//if mode == EProxyModeReverse {
-	//	a := NewMqttMonitor(monitorSettingA)
-	//	b := NewMqttMonitor(monitorSettingB)
-	//	proxy.a = a
-	//	proxy.b = b
-	//} else {
-	//	b := NewMqttMonitor(monitorSettingB)
-	//	a := NewMqttMonitor(monitorSettingA)
-	//	proxy.a = a
-	//	proxy.b = b
-	//}
-
-	return proxy
+	return p
 }
 
-func (m *mqttProxy) Stop() {
+func (m *proxy) Stop() {
 	m.a.Stop()
 	m.b.Stop()
 }
 
-func (m *mqttProxy) Reset() {
+func (m *proxy) Reset() {
 	m.a.Reset()
 	m.b.Reset()
 }
 
+//// retryWithBackoff 执行重试逻辑
+//func (m *proxy) retryWithBackoff(operation func() error, retries int, timeout time.Duration, operationName string) bool {
+//	for i := 0; i < retries; i++ {
+//		if err := operation(); err != nil {
+//			fmt.Printf("[%s]: %s failed (attempt %d/%d): %v\r\n",
+//				time.Now().Format("15:04:05.000"), operationName, i+1, retries, err)
+//			if i < retries-1 {
+//				time.Sleep(timeout)
+//			}
+//			continue
+//		}
+//		return true
+//	}
+//	fmt.Printf("[%s]: %s failed after %d attempts\r\n",
+//		time.Now().Format("15:04:05.000"), operationName, retries)
+//	return false
+//}
+
 // OnNoticeA 收到来自A的通知
-func (m *mqttProxy) OnNoticeA(notice PackNotice) {
-	if m.mode == EProxyModeForward || !m.settingA.ProxyNotice || m.b == nil {
+func (m *proxy) OnNoticeA(notice PackNotice) {
+	if m.mode == EProxyModeForward || !m.proxyNotice || m.b == nil {
 		return
 	}
 
-	m.retryWithBackoff(func() error {
-		return m.b.RelayNotice(notice)
-	}, m.settingA.ReTry, m.settingB.TimeOut, "Notice A-> B")
+	topic := BuildNoticeTopic(m.settingB.PreFix, notice.Route)
+	err := m.b.Publish(topic, false, &notice)
+	if err != nil {
+		fmt.Printf("[%s]:proxy notice  (%d) route %s  A-> B Failed because %s\r\n", time.Now().Format("15:04:05.000"), notice.Id, notice.Route, err.Error())
+		return
+	}
+
 }
 
-func (m *mqttProxy) OnRetainNoticeA(notice PackNotice) {
-	if m.mode == EProxyModeForward || !m.settingA.ProxyRetainNotice || m.b == nil {
+func (m *proxy) OnRetainNoticeA(notice PackNotice) {
+	if m.mode == EProxyModeForward || !m.proxyRetainNotice || m.b == nil {
 		return
 	}
-
-	m.retryWithBackoff(func() error {
-		return m.b.RelayRetainNotice(notice)
-	}, m.settingA.ReTry, m.settingB.TimeOut, "Retain Notice A-> B")
+	topic := BuildRetainNoticeTopic(m.settingB.PreFix, notice.Route)
+	err := m.b.Publish(topic, true, &notice)
+	if err != nil {
+		fmt.Printf("[%s]:proxy retain notice  (%d) route %s  A-> B Failed because %s\r\n", time.Now().Format("15:04:05.000"), notice.Id, notice.Route, err.Error())
+		return
+	}
 }
 
-func (m *mqttProxy) OnLogA(log PackLog) {
-	if m.mode == EProxyModeForward || !m.settingA.ProxyLog || m.b == nil {
+func (m *proxy) OnLogA(log PackLog) {
+	if m.mode == EProxyModeForward || !m.proxyLog || m.b == nil {
 		return
 	}
-
-	m.retryWithBackoff(func() error {
-		return m.b.RelayLog(log)
-	}, m.settingA.ReTry, m.settingB.TimeOut, "Log A-> B")
+	topic := BuildLogTopic(m.settingB.PreFix)
+	err := m.b.Publish(topic, false, &log)
+	if err != nil {
+		fmt.Printf("[%s]:proxy log  (%d) A-> B Failed because %s\r\n", time.Now().Format("15:04:05.000"), log.Id, err.Error())
+		return
+	}
 }
 
-func (m *mqttProxy) OnNoticeB(notice PackNotice) {
-	if m.mode == EProxyModeReverse || !m.settingB.ProxyNotice || m.a == nil {
+func (m *proxy) OnNoticeB(notice PackNotice) {
+	if m.mode == EProxyModeReverse || !m.proxyNotice || m.a == nil {
 		return
 	}
-
-	m.retryWithBackoff(func() error {
-		return m.a.RelayNotice(notice)
-	}, m.settingB.ReTry, m.settingA.TimeOut, "Notice B-> A")
+	topic := BuildNoticeTopic(m.settingA.PreFix, notice.Route)
+	err := m.a.Publish(topic, false, &notice)
+	if err != nil {
+		fmt.Printf("[%s]:proxy notice  (%d) route %s  B-> A Failed because %s\r\n", time.Now().Format("15:04:05.000"), notice.Id, notice.Route, err.Error())
+		return
+	}
 }
 
-func (m *mqttProxy) OnRetainNoticeB(notice PackNotice) {
-	if m.mode == EProxyModeReverse || !m.settingB.ProxyRetainNotice || m.a == nil {
+func (m *proxy) OnRetainNoticeB(notice PackNotice) {
+	if m.mode == EProxyModeReverse || !m.proxyRetainNotice || m.a == nil {
 		return
 	}
-
-	m.retryWithBackoff(func() error {
-		return m.a.RelayRetainNotice(notice)
-	}, m.settingB.ReTry, m.settingA.TimeOut, "Retain Notice B-> A")
+	topic := BuildRetainNoticeTopic(m.settingA.PreFix, notice.Route)
+	err := m.a.Publish(topic, true, &notice)
+	if err != nil {
+		fmt.Printf("[%s]:proxy retain notice  (%d) route %s  B-> A Failed because %s\r\n", time.Now().Format("15:04:05.000"), notice.Id, notice.Route, err.Error())
+		return
+	}
 }
 
-func (m *mqttProxy) OnLogB(log PackLog) {
-	if m.mode == EProxyModeReverse || !m.settingB.ProxyLog || m.a == nil {
+func (m *proxy) OnLogB(log PackLog) {
+	if m.mode == EProxyModeReverse || !m.proxyLog || m.a == nil {
 		return
 	}
-
-	m.retryWithBackoff(func() error {
-		return m.a.RelayLog(log)
-	}, m.settingB.ReTry, m.settingA.TimeOut, "Log B-> A")
+	topic := BuildLogTopic(m.settingA.PreFix)
+	err := m.a.Publish(topic, false, &log)
+	if err != nil {
+		fmt.Printf("[%s]:proxy log  (%d)  B-> A Failed because %s\r\n", time.Now().Format("15:04:05.000"), log.Id, err.Error())
+		return
+	}
 }
 
 // OnReqDetectedA 正向代理 让来自A的请求 转发给B
-func (m *mqttProxy) OnReqDetectedA(pack PackReq) {
-	if m.mode == EProxyModeReverse {
-		return
-	}
-	if m.b == nil {
-		time.Sleep(m.settingB.TimeOut)
-		return // 修复：直接返回而不是递归调用
+func (m *proxy) onReqA(pack PackReq) (EResp, any) {
+	if m.mode == EProxyModeReverse || m.b == nil {
+		return ERespBypass, nil
 	}
 	resp := m.b.Req(pack.To, pack.Route, pack.Content)
 	if resp.RespCode != ERespSuccess {
 		fmt.Printf("[%s]: %d %s %s(%d) %v\r\n", time.Now().Format("15:04:05.000"), resp.Id, "proxy req A-> B Failed", getRespCodeName(resp.RespCode), resp.RespCode, resp.Content)
 	}
-	m.a.RelayResp(pack, resp.RespCode, resp.Content)
+	return resp.RespCode, resp.Content
 
 }
 
 // OnReqDetectedB 反向代理
-func (m *mqttProxy) OnReqDetectedB(pack PackReq) {
-	if m.mode == EProxyModeForward {
-		return
+func (m *proxy) onReqB(pack PackReq) (EResp, any) {
+	if m.mode == EProxyModeForward || m.a == nil {
+		return ERespBypass, nil
 	}
-	if m.a == nil {
-		time.Sleep(m.settingA.TimeOut) // 修复：使用settingA的超时时间
-		return                         // 修复：直接返回而不是错误的递归调用
-	}
-
 	resp := m.a.Req(pack.To, pack.Route, pack.Content)
-	if resp.RespCode != ERespSuccess {
-		fmt.Printf("[%s]: %d %s %s(%d) %v\r\n", time.Now().Format("15:04:05.000"), resp.Id, "proxy req B-> A Failed", getRespCodeName(resp.RespCode), resp.RespCode, resp.Content)
-	}
-	m.b.RelayResp(pack, resp.RespCode, resp.Content)
+	return resp.RespCode, resp.Content
 
-}
-
-func (m *mqttProxy) onDiscoverA(module string) {
-	if m.mode == EProxyModeForward || m.settingA.ProxyModules != nil || module == "ProxyA"+m.Id { //正向代理时不需要处理 已经设置好代理时不需要处理
-		return
-	}
-	if m.b == nil {
-		time.Sleep(m.settingB.TimeOut)
-		return // 修复：避免递归调用
-	}
-	m.b.Discover(module)
-}
-
-func (m *mqttProxy) onDiscoverB(module string) {
-
-	if m.mode == EProxyModeReverse || m.settingB.ProxyModules != nil || module == "ProxyB"+m.Id { //反向代理时不需要处理 已经设置好代理时不需要处理
-		return
-	}
-	if m.a == nil {
-		time.Sleep(m.settingA.TimeOut) // 修复：使用settingA的超时时间
-		return                         // 修复：避免递归调用
-	}
-	m.a.Discover(module)
 }

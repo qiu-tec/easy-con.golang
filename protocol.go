@@ -7,6 +7,7 @@
 package easyCon
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -26,16 +27,40 @@ const (
 const (
 	NoticeTopic       string = "Notice"
 	RetainNoticeTopic string = "RetainNotice"
-	LogTopic          string = "Log"
+
+	//InternalNoticeTopic string = "InternalNotice"
+
+	LogTopic  string = "Log"
+	ReqTopic  string = "Request/"
+	RespTopic string = "Response/"
 )
 
-//	type keyValuePair struct {
-//		Key   string
-//		Value any
-//	}
+type IPack interface {
+	GetId() uint64
+	GetType() EPType
+	Target() string
+	Raw() ([]byte, error)
+	IsRetain() bool
+}
+
+// CommPack 通信专用包
+
 type packBase struct {
 	PType EPType
 	Id    uint64
+}
+
+func (p *packBase) GetId() uint64 {
+	return p.Id
+}
+func (p *packBase) GetType() EPType {
+	return p.PType
+}
+func (p *packBase) Target() string {
+	return ""
+}
+func (p *packBase) IsRetain() bool {
+	return false
 }
 
 // PackReq 请求
@@ -48,6 +73,29 @@ type PackReq struct {
 	Content any
 }
 
+func (p *PackReq) Target() string {
+	return p.To
+}
+
+func (p *PackResp) Target() string {
+	return p.From
+}
+func serialize(p any) ([]byte, error) {
+	d, err := json.Marshal(p)
+	if err != nil {
+		return nil, err
+	} else {
+		return d, err
+	}
+}
+func deserialize(data []byte, p any) error {
+	err := json.Unmarshal(data, p)
+	return err
+}
+func (p *PackReq) Raw() ([]byte, error) {
+	return serialize(p)
+}
+
 // PackResp 响应
 type PackResp struct {
 	PackReq
@@ -55,6 +103,11 @@ type PackResp struct {
 	RespCode EResp
 	Error    string
 }
+
+func (p *PackResp) Raw() ([]byte, error) {
+	return serialize(p)
+}
+
 type PackLog struct {
 	packBase
 	From    string
@@ -63,11 +116,24 @@ type PackLog struct {
 	Error   string
 	Content string
 }
+
+func (p *PackLog) Raw() ([]byte, error) {
+	return serialize(p)
+}
+
 type PackNotice struct {
 	packBase
 	From    string
 	Route   string
+	Retain  bool
 	Content any
+}
+
+func (p *PackNotice) Raw() ([]byte, error) {
+	return serialize(p)
+}
+func (p *PackNotice) IsRetain() bool {
+	return p.Retain
 }
 
 // EPType 包类型枚举
@@ -136,13 +202,14 @@ const (
 	ERespError EResp = 500
 	// ERespTimeout 响应超时
 	ERespTimeout EResp = 408
+
+	ERespBypass EResp = 100
 )
 
 var (
-	reqId          uint64
-	logId          uint64
-	noticeId       uint64
-	retainNoticeId uint64
+	reqId    uint64
+	logId    uint64
+	noticeId uint64
 )
 
 type ELogMode string
@@ -172,9 +239,6 @@ func getLogId() uint64 {
 }
 func getNoticeId() uint64 {
 	return atomic.AddUint64(&noticeId, 1)
-}
-func getRetainNoticeId() uint64 {
-	return atomic.AddUint64(&retainNoticeId, 1)
 }
 
 // getRespCodeName 获取EResp枚举的名称
@@ -267,24 +331,68 @@ func newNoticePack(module, route string, content any) PackNotice {
 		Content: content,
 	}
 }
-func newRetainNoticePack(module, route string, content any) PackNotice {
-	return PackNotice{
-		packBase: packBase{
-			PType: EPTypeNotice,
-			Id:    getRetainNoticeId(),
-		},
-		From:    module,
-		Route:   route,
-		Content: content,
+
+func BuildReqTopic(prefix, module string) string {
+	if prefix != "" && prefix[len(prefix)-1] != '/' {
+		prefix += "/"
 	}
+	return prefix + ReqTopic + module
 }
-func buildReqTopic(module string) string {
-	return "Request_" + module
+func BuildRespTopic(prefix, module string) string {
+	if prefix != "" && prefix[len(prefix)-1] != '/' {
+		prefix += "/"
+	}
+	return prefix + RespTopic + module
 }
-func buildRespTopic(module string) string {
-	return "Response_" + module
+func BuildNoticeTopic(prefix, sub string) string {
+	if prefix != "" && prefix[len(prefix)-1] != '/' {
+		prefix += "/"
+	}
+	return prefix + NoticeTopic + "/" + sub
 }
-func buildGzipReqTopic(module string) string { return "RequestGzip_" + module } //ReqTopic
-func buildGzipRespTopic(module string) string {
-	return "ResponseGzip_" + module
+
+func BuildRetainNoticeTopic(prefix, sub string) string {
+	if prefix != "" && prefix[len(prefix)-1] != '/' {
+		prefix += "/"
+	}
+	return prefix + RetainNoticeTopic + "/" + sub
 }
+
+func BuildLogTopic(prefix string) string {
+	if prefix != "" && prefix[len(prefix)-1] != '/' {
+		prefix += "/"
+	}
+	return prefix + LogTopic
+}
+func unmarshalPack(pType EPType, data []byte) (IPack, error) {
+	switch pType {
+	case EPTypeReq:
+		var pack PackReq
+		err := json.Unmarshal(data, &pack)
+		if err != nil {
+			return nil, err
+		}
+		return &pack, nil
+	case EPTypeResp:
+		var pack PackResp
+		err := json.Unmarshal(data, &pack)
+		if err != nil {
+			return nil, err
+		}
+		return &pack, nil
+	case EPTypeNotice:
+		var pack PackNotice
+		err := json.Unmarshal(data, &pack)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return nil, fmt.Errorf("unknown pack type %s", pType)
+}
+
+//func BuildInternalNoticeTopic(prefix, route string) string {
+//	if prefix != "" && prefix[len(prefix)-1] != '/' {
+//		prefix += "/"
+//	}
+//	return prefix + NoticeTopic + "/" + route
+//}

@@ -18,60 +18,81 @@ func TestMqttProxy(t *testing.T) {
 	fmt.Println("正向代理测试开始")
 	//正向代理模式
 	forwardMode()
-	time.Sleep(time.Second * 5)
-	fmt.Println("反向代理测试开始")
-	//反向代理模式
-	reverseMode()
+	//time.Sleep(time.Second * 5)
+	//fmt.Println("反向代理测试开始")
+	////反向代理模式
+	//reverseMode()
 }
 
 func forwardMode() {
 	proxy := easyCon.NewMqttProxy(
-		easyCon.ProxySetting{
+		easyCon.MqttProxySetting{
 			Addr:    "ws://127.0.0.1:5002/ws",
 			ReTry:   3,
 			PreFix:  "",
 			TimeOut: time.Second * 3,
 		},
-		easyCon.ProxySetting{
+		easyCon.MqttProxySetting{
 			Addr:    "ws://127.0.0.1:5002/ws",
 			ReTry:   3,
 			PreFix:  "B.",
 			TimeOut: time.Second * 3,
-		}, easyCon.EProxyModeForward)
+		},
+		easyCon.EProxyModeForward, true, true, true,
+		[]string{"ModuleA"})
 
-	setting := easyCon.NewSetting("ModuleA",
-		"ws://127.0.0.1:5002/ws",
-		onReqA,
-		nil)
-	setting.PreFix = ""
-	setting.OnLog = onLogA
-	setting.OnNotice = onNoticeA
-	setting.OnRetainNotice = onRetainNoticeA
+	setting := easyCon.NewDefaultMqttSetting("ModuleA", "ws://127.0.0.1:5002/ws")
 	setting.LogMode = easyCon.ELogModeUpload
-	modA := easyCon.NewMqttAdapter(setting)
+	cba := easyCon.AdapterCallBack{
+		OnReqRec:          onReqA,
+		OnLogRec:          onLogA,
+		OnNoticeRec:       onNoticeA,
+		OnRetainNoticeRec: onRetainNoticeA,
+		//OnLinked:          nil,
+		//OnExiting:         nil,
+		//OnGetVersion:      nil,
+	}
+	modA := easyCon.NewMqttAdapter(setting, cba)
 
 	setting.PreFix = "B."
 	setting.Module = "ModuleB"
-	setting.OnLog = onLogB
-	setting.OnReq = onReqB
-	setting.OnNotice = onNoticeB
-	setting.OnRetainNotice = onRetainNoticeB
-	modB := easyCon.NewMqttAdapter(setting)
-	time.Sleep(time.Second)
-	err := modB.SendNotice("Notice", "I am ModuleB Notice")
-	if err != nil {
-		fmt.Println(err)
+	cbb := easyCon.AdapterCallBack{
+		OnReqRec:          onReqB,
+		OnLogRec:          onLogB,
+		OnNoticeRec:       onNoticeB,
+		OnRetainNoticeRec: onRetainNoticeB,
+		//OnLinked:          nil,
+		//OnExiting:         nil,
+		//OnGetVersion:      nil,
 	}
-	time.Sleep(time.Second)
-	_ = modB.SendRetainNotice("RetainNotice", "I am ModuleB RetainNotice")
-	time.Sleep(time.Second)
-	_ = modB.CleanRetainNotice()
-	time.Sleep(time.Second)
-	modB.Debug("I am ModuleB Debug")
-	time.Sleep(time.Second)
+	modB := easyCon.NewMqttAdapter(setting, cbb)
+
+	//for i := 0; i < 2; i++ {
+	//	err := modB.SendNotice("Notice", "I am ModuleB Notice")
+	//	if err != nil {
+	//		fmt.Println(err)
+	//	}
+	//
+	//	time.Sleep(time.Second)
+	//}
+	//
+	//time.Sleep(time.Second)
+	//_ = modB.SendRetainNotice("RetainNotice", "I am ModuleB RetainNotice")
+	//time.Sleep(time.Second)
+	//_ = modB.CleanRetainNotice()
+	//time.Sleep(time.Second)
+	//modB.Debug("I am ModuleB Debug")
+	//time.Sleep(time.Second)
+
 	for i := 0; i < 5; i++ {
 		//time.Sleep(time.Second)
 		res := modA.Req("ModuleB", "Who are you", "")
+		fmt.Println(res)
+		time.Sleep(time.Second)
+	}
+	for i := 0; i < 5; i++ {
+		//time.Sleep(time.Second)
+		res := modB.Req("ModuleA", "Who are you", "")
 		fmt.Println(res)
 		time.Sleep(time.Second)
 	}
@@ -83,42 +104,52 @@ func forwardMode() {
 
 func reverseMode() {
 	proxy := easyCon.NewMqttProxy(
-		easyCon.ProxySetting{
+		easyCon.MqttProxySetting{
 			Addr:    "ws://127.0.0.1:5002/ws",
 			ReTry:   0,
 			PreFix:  "A.",
 			TimeOut: time.Second * 3,
 		},
-		easyCon.ProxySetting{
+		easyCon.MqttProxySetting{
 			Addr:    "ws://127.0.0.1:5002/ws",
 			ReTry:   0,
 			PreFix:  "",
 			TimeOut: time.Second * 3,
-		}, easyCon.EProxyModeReverse)
+		},
+		easyCon.EProxyModeReverse, true, true, true,
+		[]string{"ModuleB"})
 
-	setting := easyCon.NewSetting("ModuleA",
-		"ws://127.0.0.1:5002/ws",
-		onReqA, nil)
+	setting := easyCon.NewDefaultMqttSetting("ModuleA", "ws://127.0.0.1:5002/ws")
 	setting.PreFix = "A."
-	setting.OnLog = onLogA
-	setting.OnNotice = onNoticeA
-	setting.OnRetainNotice = onRetainNoticeA
 	setting.LogMode = easyCon.ELogModeUpload
-	modA := easyCon.NewMqttAdapter(setting)
+	cba := easyCon.AdapterCallBack{
+		OnReqRec:          onReqA,
+		OnLogRec:          onLogA,
+		OnNoticeRec:       onNoticeA,
+		OnRetainNoticeRec: onRetainNoticeA,
+		//OnLinked:          nil,
+		//OnExiting:         nil,
+		//OnGetVersion:      nil,
+	}
+	modA := easyCon.NewMqttAdapter(setting, cba)
 	time.Sleep(time.Second)
-
 	setting.PreFix = ""
 	setting.Module = "ModuleB"
-	setting.OnLog = onLogB
-	setting.OnReq = onReqB
-	setting.OnNotice = onNoticeB
-	setting.OnRetainNotice = onRetainNoticeB
-	modB := easyCon.NewMqttAdapter(setting)
+	cbb := easyCon.AdapterCallBack{
+		OnReqRec:          onReqB,
+		OnLogRec:          onLogB,
+		OnNoticeRec:       onNoticeB,
+		OnRetainNoticeRec: onRetainNoticeB,
+		//OnLinked:          nil,
+		//OnExiting:         nil,
+		//OnGetVersion:      nil,
+	}
+	modB := easyCon.NewMqttAdapter(setting, cbb)
 	_ = modA.SendNotice("Notice", "I am ModuleA Notice")
 	time.Sleep(time.Second)
 	_ = modA.SendRetainNotice("RetainNotice", "I am ModuleA RetainNotice")
 	time.Sleep(time.Second)
-	_ = modA.CleanRetainNotice()
+	_ = modA.CleanRetainNotice("RetainNotice")
 
 	time.Sleep(time.Second)
 	modA.Debug("I am ModuleA Debug")

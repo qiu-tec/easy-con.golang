@@ -23,24 +23,33 @@ type Info struct {
 func TestMqttClient(t *testing.T) {
 
 	addr := "ws://127.0.0.1:5002/ws"
-	setting := easyCon.NewSetting("ModuleA", addr, onReq, onStatusChanged)
+	setting := easyCon.NewDefaultMqttSetting("ModuleA", addr)
 	//sync mode test
-	setting.EProtocol = easyCon.EProtocolMQTT
-	setting.IsWaitLink = false
+	//setting.EProtocol = easyCon.EProtocolMQTT
+	//setting.IsWaitLink = false
 	setting.LogMode = easyCon.ELogModeUpload
-	moduleA := easyCon.NewMqttAdapter(setting)
+	cb := easyCon.AdapterCallBack{
+		OnReqRec: onReq,
+		OnLogRec: func(log easyCon.PackLog) {
+			fmt.Printf("[%s]:Log %d received %s \r\n", time.Now().Format("15:04:05.000"), log.Id, log.Content)
+		},
+		OnNoticeRec: func(notice easyCon.PackNotice) {
+			fmt.Printf("[%s]:Notice %d received %s \r\n", time.Now().Format("15:04:05.000"), notice.Id, notice.Content)
+		},
+		OnRetainNoticeRec: func(notice easyCon.PackNotice) {
+			fmt.Printf("[%s]:RetainNotice %d received %s \r\n", time.Now().Format("15:04:05.000"), notice.Id, notice.Content)
+		},
+		OnLinked:     nil,
+		OnExiting:    nil,
+		OnGetVersion: nil,
+		OnStatusChanged: func(status easyCon.EStatus) {
+			fmt.Printf("[%s]: %s %s \r\n", time.Now().Format("15:04:05.000"), "status changed", status)
+		},
+	}
+	moduleA := easyCon.NewMqttAdapter(setting, cb)
 	setting.Module = "ModuleB"
-	setting.OnNotice = func(notice easyCon.PackNotice) {
-		fmt.Printf("[%s]:Notice %d received %s \r\n", time.Now().Format("15:04:05.000"), notice.Id, notice.Content)
-	}
-	setting.OnRetainNotice = func(notice easyCon.PackNotice) {
-		fmt.Printf("[%s]:RetainNotice %d received %s \r\n", time.Now().Format("15:04:05.000"), notice.Id, notice.Content)
-	}
-	setting.OnLog = func(log easyCon.PackLog) {
-		fmt.Printf("[%s]:Log %d received %s \r\n", time.Now().Format("15:04:05.000"), log.Id, log.Content)
-	}
 
-	moduleB := easyCon.NewMqttAdapter(setting)
+	moduleB := easyCon.NewMqttAdapter(setting, cb)
 	defer func() {
 		moduleA.Stop()
 		moduleB.Stop()
@@ -50,63 +59,37 @@ func TestMqttClient(t *testing.T) {
 	moduleA.Reset()
 
 	moduleB.Reset()
-
+	//time.Sleep(time.Second)
 	for i := 0; i < 10; i++ {
 		content := fmt.Sprintf("I am ModuleA %d", i)
-		go func() {
-			res := moduleA.Req("ModuleB", "PING", content)
-			if res.RespCode != easyCon.ERespSuccess {
-				fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "request failed")
-			}
-		}()
+		//go func() {
+		res := moduleA.Req("ModuleB", "PING", content)
+		if res.RespCode != easyCon.ERespSuccess {
+			fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "request failed")
+		}
+		//}()
 		time.Sleep(time.Millisecond * 100)
-		go func() {
-			err := moduleA.SendNotice("HereWeGo", content)
-			if err != nil {
-				fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "notice send failed")
-			}
-			err = moduleA.SendRetainNotice("YaHaHa", content)
-			if err != nil {
-				fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "retain notice send failed")
-			}
-		}()
+		//go func() {
+		err := moduleA.SendNotice("HereWeGo", content)
+		if err != nil {
+			fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "notice send failed")
+		}
+		err = moduleA.SendRetainNotice("YaHaHa", content)
+		if err != nil {
+			fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "retain notice send failed")
+		}
+		//}()
 	}
 	_ = moduleA.SendNotice("TestNotice", Info{Msg: "I am ModuleA Notice", ID: rand.Int(), User: "Joey"})
 	_ = moduleA.SendNotice("TestNotice", []Info{
 		{Msg: "I am ModuleA RetainNotice", ID: rand.Int(), User: "Joey"},
 		{Msg: "I am ModuleA RetainNotice", ID: rand.Int(), User: "Joey"},
 		{Msg: "I am ModuleA RetainNotice", ID: rand.Int(), User: "Joey"}})
-	_ = moduleA.SendNotice("TestFloatNotice", float64(1.1))
+	_ = moduleA.SendNotice("TestFloatNotice", 1.1)
 	_ = moduleA.SendNotice("TestBytesNotice", []byte{1, 2, 3, 4})
 	_ = moduleA.Req("ModuleB", "Test", Info{Msg: "I am ModuleA Notice", ID: rand.Int(), User: "Joey"})
 
-	/*
-		for i := 0; i < 10; i++ {
-			content := fmt.Sprintf("I am ModuleA Notice %d", i)
-			go func() {
-				err := moduleA.SendNotice("debugLog", content)
-				if err != nil {
-					fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "notice send failed")
-				}
-				err = moduleA.SendRetainNotice("debugLog", "I am ModuleA Notice")
-				if err != nil {
-					fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "retain notice send failed")
-				}
-			}()
-		}
-		for i := 0; i < 10; i++ {
-			content := fmt.Sprintf("I am ModuleA Log %d", i)
-			go func() {
-				moduleA.Err(content, errors.New(content))
-			}()
-		}
-	*/
-
 	time.Sleep(time.Second * 5)
-}
-
-func onStatusChanged(status easyCon.EStatus) {
-	fmt.Printf("[%s]: %s %s \r\n", time.Now().Format("15:04:05.000"), "status changed", status)
 }
 
 func onReq(pack easyCon.PackReq) (easyCon.EResp, any) {

@@ -15,7 +15,7 @@ import (
 func main() {
 	//create a default setting
 	addr := "ws://xxxxxx.xxx.xx/mqtt"
-	setting := easyCon.NewSetting("ModuleA", addr, onReq, onStatusChanged)
+	setting := easyCon.NewDefaultMqttSetting("ModuleA", addr, onReqRec, onStatusChanged)
 	//if has uid and pwd
 	setting.UID = "xxxx"
 	setting.PWD = "xxxxx"
@@ -24,10 +24,10 @@ func main() {
 	defer moduleA.Stop()
 
 	setting.Module = "ModuleB"
-	setting.OnNotice = func(notice easyCon.PackNotice) {
+	setting.OnNoticeRec = func(notice easyCon.PackNotice) {
 		fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), notice.Content)
 	}
-	setting.OnLog = func(log easyCon.PackLog) {
+	setting.OnLogRec = func(log easyCon.PackLog) {
 		fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), log.Content)
 	}
 	moduleB := easyCon.NewMqttAdapter(setting)
@@ -47,7 +47,7 @@ func onStatusChanged(status easyCon.EStatus) {
 	fmt.Println("StatusChanged", status)
 }
 
-func onReq(pack easyCon.PackReq) (easyCon.EResp, any) {
+func onReqRec(pack easyCon.PackReq) (easyCon.EResp, any) {
 	switch pack.Route {
 	case "hello":
 		return easyCon.ERespSuccess, "hello"

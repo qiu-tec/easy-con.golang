@@ -14,77 +14,65 @@ import (
 	"time"
 )
 
-var monitor easyCon.IMonitor
+var monitor easyCon.IAdapter
 
 func TestMqttDetective(t *testing.T) {
-	monitorSetting := easyCon.NewMonitorSetting(
-		easyCon.NewSetting("Monitor", "ws://127.0.0.1:5002/ws", onReq, onStatus),
-		[]string{"ModuleCloud"},
-		onReqDetected,
-		onRespDetected,
-	)
-	//monitorSetting.PreFix = "Monitor."
-	monitorSetting.OnLog = onLog
-	monitorSetting.OnRetainNotice = onRetainNotice
-	monitorSetting.OnNotice = onNotice
-	monitor = easyCon.NewMqttMonitor(monitorSetting)
-	setting := easyCon.NewSetting("ModuleA", "ws://127.0.0.1:5002/ws", onReq, onStatus)
+	mqttSetting := easyCon.NewDefaultMqttSetting("Monitor", "ws://127.0.0.1:5002/ws")
+	cb := easyCon.AdapterCallBack{
+		OnReqRec:          onReqDetected,
+		OnRespRec:         onRespDetected,
+		OnNoticeRec:       onNotice,
+		OnLogRec:          onLog,
+		OnRetainNoticeRec: onRetainNotice,
+	}
+	//monitor = easyCon.NewMqttMonitor(mqttSetting, cb, true, []string{"ModuleA", "ModuleB"})
+	monitor = easyCon.NewMqttMonitor(mqttSetting, cb)
+	setting := easyCon.NewDefaultMqttSetting("ModuleA", "ws://127.0.0.1:5002/ws")
 	setting.LogMode = easyCon.ELogModeUpload
+	adapterCb := easyCon.AdapterCallBack{
+		OnReqRec: onReq,
+		//OnLogRec:          nil,
+		//OnNoticeRec:       nil,
+		//OnRetainNoticeRec: nil,
+		//OnLinked:          nil,
+		//OnExiting:         nil,
+		//OnGetVersion:      nil,
+		OnStatusChanged: onStatus,
+	}
+	adapterCb.OnStatusChanged = nil
+	moduleA := easyCon.NewMqttAdapter(setting, adapterCb)
 
-	//setting.PreFix = "Monitor."
-	time.Sleep(time.Second)
-	moduleA := easyCon.NewMqttAdapter(setting)
 	setting.Module = "ModuleB"
-	time.Sleep(time.Second)
-	moduleB := easyCon.NewMqttAdapter(setting)
+
+	moduleB := easyCon.NewMqttAdapter(setting, adapterCb)
 	defer func() {
 		monitor.Stop()
 		moduleA.Stop()
 		moduleB.Stop()
 	}()
-	//for i := 0; i < 2; i++ {
-	_ = moduleA.SendNotice("Notice", "I am ModuleA Notice")
-	time.Sleep(time.Second)
-	_ = moduleA.SendRetainNotice("RetainNotice", "I am ModuleA RetainNotice")
-	time.Sleep(time.Second)
-	_ = moduleA.CleanRetainNotice()
-	moduleB.Debug("moduleB日志测试")
+	for i := 0; i < 5; i++ {
+		_ = moduleA.SendNotice("Notice", "I am ModuleA Notice")
+		time.Sleep(time.Second)
+		_ = moduleA.SendRetainNotice("RetainNotice", "I am ModuleA RetainNotice")
+		time.Sleep(time.Second)
+		_ = moduleA.CleanRetainNotice("RetainNotice")
+		//moduleB.Debug("moduleB日志测试")
 
-	//}
-	//	for i := 0; i < 2; i++ {
-
-	//res := moduleA.Req("ModuleB", "PING", "I am ModuleA")
-	//if res.RespCode != easyCon.ERespSuccess {
-	//	fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求失败")
-	//}
-	//time.Sleep(time.Second)
-	//res = moduleB.Req("ModuleA", "PING", "I am ModuleB")
-	//if res.RespCode != easyCon.ERespSuccess {
-	//	fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求失败")
-	//}
-	//time.Sleep(time.Second)
-	//请求云服务的PING
-	res := moduleA.Req("ModuleCloud", "PING", "I am ModuleA")
-	if res.RespCode != easyCon.ERespSuccess {
-		fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求失败")
-	} else {
-		fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "请求成功")
 	}
-	time.Sleep(time.Second)
-	//}
 
 	moduleA.Err("moduleA日志测试", errors.New("ModuleA log error"))
 	time.Sleep(time.Second)
-	moduleB.Debug("moduleB日志测试")
-	time.Sleep(time.Second)
+	//moduleB.Debug("moduleB日志测试")
+	for i := 0; i < 5; i++ {
+		moduleA.Req("ModuleB", "Ping", "Ping from ModuleA")
+		time.Sleep(time.Second)
+		moduleB.Req("ModuleA", "Ping", "Ping from ModuleB")
+		time.Sleep(time.Second)
+	}
+	fmt.Println("Job finished")
 
-	//moduleA.Reset()
-	//time.Sleep(time.Second)
-	//moduleB.Reset()
-	//time.Sleep(time.Second)
-
+	time.Sleep(time.Second * 100)
 }
-
 func onStatus(status easyCon.EStatus) {
 	fmt.Println(time.Now().Format("15:04:05.000"), status)
 }
@@ -105,11 +93,9 @@ func onRespDetected(pack easyCon.PackResp) {
 	fmt.Println(time.Now().Format("15:04:05.000"), "Monitor detected response=====", pack)
 }
 
-func onReqDetected(pack easyCon.PackReq) {
+func onReqDetected(pack easyCon.PackReq) (easyCon.EResp, any) {
 	fmt.Println(time.Now().Format("15:04:05.000"), "Monitor detected request=====", pack)
-	if pack.To == "ModuleCloud" {
-		monitor.RelayResp(pack, easyCon.ERespSuccess, "pong")
-	}
+	return easyCon.ERespBypass, nil
 }
 func onReq(pack easyCon.PackReq) (easyCon.EResp, any) {
 	switch pack.Route {
