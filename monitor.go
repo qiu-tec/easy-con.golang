@@ -30,7 +30,7 @@ func NewMqttMonitor(setting MqttSetting, callback AdapterCallBack) IAdapter {
 
 	return newMqttAdapterInner(setting, callback)
 }
-func NewCoreMonitor(setting CoreSetting, engineCallback EngineCallback, callback AdapterCallBack) IAdapter {
+func NewCGoMonitor(setting CoreSetting, callback AdapterCallBack, onRead func() []byte, onWrite func([]byte) error) IAdapter {
 	setting.IsWaitLink = false
 	setting.Module = "#"
 	f := callback.OnLinked
@@ -46,5 +46,5 @@ func NewCoreMonitor(setting CoreSetting, engineCallback EngineCallback, callback
 			f(adapter)
 		}
 	}
-	return newCoreAdapter(setting, engineCallback, callback)
+	return NewCgoAdapter(setting, callback, onRead, onWrite)
 }

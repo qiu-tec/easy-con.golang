@@ -153,12 +153,12 @@ const (
 type EProxyMode string
 
 const (
-	// EProxyModeForward proxy Req from A -> B
+	// EProxyModeForward mqttProxy Req from A -> B
 	EProxyModeForward EProxyMode = "Forward"
-	// EProxyModeReverse proxy Req from B -> A
+	// EProxyModeReverse mqttProxy Req from B -> A
 	EProxyModeReverse EProxyMode = "Reverse"
-	//// EProxyModeBoth proxy Req Both way
-	//EProxyModeBoth EProxyMode = 2
+	// EProxyModeBoth mqttProxy Req Both way
+	EProxyModeBoth EProxyMode = "Both"
 )
 
 // EStatus 访问器状态

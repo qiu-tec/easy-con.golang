@@ -384,7 +384,7 @@ func (adapter *coreAdapter) loop() {
 	}
 	adapter.wg.Add(1)
 	defer adapter.wg.Done()
-	if adapter.setting.EProtocol == EProtocolMQTTSync {
+	if adapter.setting.IsSync {
 		ch := make(chan struct{})
 		go func() {
 			for {
