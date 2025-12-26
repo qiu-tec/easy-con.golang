@@ -65,6 +65,7 @@ func (broker *CgoBroker) onSend(topic string, cgoRaw []byte) {
 			f, b := broker.clients[module]
 			if !b {
 				broker.err(fmt.Errorf("unknown module %s", module))
+				continue
 			}
 			f(cgoRaw)
 		}

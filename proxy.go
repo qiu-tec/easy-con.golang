@@ -35,7 +35,7 @@ func NewCgoMqttProxy(setting MqttProxySetting, onWrite func([]byte) error) (IPro
 		proxyLog:          true,
 	}
 	sa := CoreSetting{
-		Module:            "#",
+		Module:            setting.Module,
 		TimeOut:           0,
 		ReTry:             0,
 		LogMode:           ELogModeUpload,

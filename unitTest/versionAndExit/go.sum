@@ -1,0 +1,12 @@
+github.com/eclipse/paho.mqtt.golang v1.4.3 h1:2kwcUGn8seMUfWndX0hGbvH8r7crgcJguQNCyp70xik=
+github.com/eclipse/paho.mqtt.golang v1.4.3/go.mod h1:CSYvoAlsMkhYOXh/oKyxa8EcBci6dVkLCbo5tTC1RIE=
+github.com/gorilla/websocket v1.5.3 h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aNNg=
+github.com/gorilla/websocket v1.5.3/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
+github.com/qiu-tec/easy-con.golang v0.2.0 h1:KIMTDPEG6VBRj1e0yEBmmvV/kscYvIcaVxySKg+5j+c=
+github.com/qiu-tec/easy-con.golang v0.2.0/go.mod h1:mfFXn8sdpyFtYOKFRS2tgu/J1zMqJyYnmjSQ6OpPw/w=
+github.com/qiu-tec/easy-con.golang v0.2.1 h1:cQZELFDmEfIx31sxg6xB78fpgjkCRdSJXOFddy4liX0=
+github.com/qiu-tec/easy-con.golang v0.2.1/go.mod h1:mfFXn8sdpyFtYOKFRS2tgu/J1zMqJyYnmjSQ6OpPw/w=
+golang.org/x/net v0.27.0 h1:5K3Njcw06/l2y9vpGCSdcxWOYHOUk3dVNGDXN+FvAys=
+golang.org/x/net v0.27.0/go.mod h1:dDi0PyhWNoiUOrAS8uXv/vnScO4wnHQO4mj9fn/RytE=
+golang.org/x/sync v0.1.0 h1:wsuoTGHzEhffawBOhz5CYhcrV4IdKZbEyZjBMuTp12o=
+golang.org/x/sync v0.1.0/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=

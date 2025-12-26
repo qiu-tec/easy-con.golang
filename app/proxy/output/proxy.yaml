@@ -1,0 +1,26 @@
+ProxyConfig:
+  Mode: Forward
+  SettingA :
+    Addr:    "ws://127.0.0.1:5002/ws"
+    TimeOut: 1000
+    ReTry:   1
+    PreFix:  ""
+    UId: ""
+    Pwd: ""
+    ProxyNotice: false
+    ProxyRetainNotice: false
+    ProxyLog: false
+    ProxyModules:
+      - "ClientProxy"
+  SettingB :
+    Addr:    "ws://172.18.23.227:8083/mqtt"
+    TimeOut: 1000
+    ReTry:   1
+    PreFix:  ""
+    UId: ""
+    Pwd: ""
+    ProxyNotice: false
+    ProxyRetainNotice: false
+    ProxyLog: false
+    ProxyModules:
+      - "ClientProxy"

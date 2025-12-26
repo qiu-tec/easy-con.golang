@@ -135,6 +135,7 @@ type CoreSetting struct {
 
 // MqttProxySetting 代理设置
 type MqttProxySetting struct {
+	Module string
 	// Addr 访问地址
 	Addr    string
 	UID     string
