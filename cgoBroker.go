@@ -44,6 +44,7 @@ func (broker *CgoBroker) Publish(cgoRaw []byte) error {
 		js, _ := respPack.Raw()
 		respCgoRaw := marshalCgoPack(BuildRespTopic("", pack.Target()), js)
 		broker.onSend(topic, respCgoRaw)
+		return nil
 	}
 	broker.onSend(topic, cgoRaw)
 	return nil

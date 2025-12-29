@@ -16,10 +16,10 @@ func NewMqttProxy(settingA, settingB MqttProxySetting, mode EProxyMode, proxyNot
 	}
 
 	sa := NewDefaultMqttSetting("Proxy", settingA.Addr)
-	sa.IsRandomClientID = true
+	//sa.IsRandomClientID = true
 	sa.LogMode = ELogModeNone
 	sa.PreFix = settingA.PreFix
-	sa.ReTry = settingA.ReTry
+	sa.ReTry = 1 //settingA.ReTry
 	sa.TimeOut = settingA.TimeOut
 	sa.PWD = settingA.PWD
 	sa.UID = settingA.UID
@@ -33,7 +33,7 @@ func NewMqttProxy(settingA, settingB MqttProxySetting, mode EProxyMode, proxyNot
 	sb := NewDefaultMqttSetting("Proxy", settingB.Addr)
 	sb.LogMode = ELogModeNone
 	sb.PreFix = settingB.PreFix
-	sb.ReTry = settingB.ReTry
+	sb.ReTry = 1 //settingB.ReTry
 	sb.TimeOut = settingB.TimeOut
 	sb.PWD = settingB.PWD
 	sb.UID = settingB.UID

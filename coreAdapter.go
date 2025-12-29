@@ -108,7 +108,7 @@ func (adapter *coreAdapter) Req(module, route string, params any) PackResp {
 		}
 	}
 	pack := newReqPack(adapter.setting.Module, module, route, params)
-	for retry := adapter.setting.ReTry; retry >= 0; retry-- {
+	for retry := adapter.setting.ReTry; retry > 0; retry-- {
 		resp := adapter.reqInner(pack, 0)
 		switch resp.RespCode {
 		case ERespTimeout:

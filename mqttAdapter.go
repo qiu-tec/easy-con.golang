@@ -9,7 +9,6 @@ package easyCon
 import (
 	"fmt"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	"strconv"
 	"time"
 )
 
@@ -114,9 +113,9 @@ func (adapter *mqttAdapter) onSubscribe(topic string, packType EPType, f func(pa
 
 func (adapter *mqttAdapter) onLink() {
 	suffix := ""
-	if adapter.setting.IsRandomClientID {
-		suffix = "." + strconv.FormatInt(time.Now().UnixNano(), 10)
-	}
+	//if adapter.setting.IsRandomClientID {
+	//	suffix = "." + strconv.FormatInt(time.Now().UnixNano(), 10)
+	//}
 	adapter.options.SetClientID(adapter.setting.PreFix + adapter.setting.Module + suffix)
 	adapter.client = mqtt.NewClient(adapter.options)
 ReLink:

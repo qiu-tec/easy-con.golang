@@ -95,10 +95,10 @@ type iLogger interface {
 type MqttSetting struct {
 	CoreSetting
 	// Addr 访问地址
-	Addr             string
-	UID              string
-	PWD              string
-	IsRandomClientID bool
+	Addr string
+	UID  string
+	PWD  string
+	//IsRandomClientID bool
 }
 
 // CoreSetting 设置
@@ -137,11 +137,11 @@ type CoreSetting struct {
 type MqttProxySetting struct {
 	Module string
 	// Addr 访问地址
-	Addr    string
-	UID     string
-	PWD     string
-	PreFix  string
-	ReTry   int
+	Addr   string
+	UID    string
+	PWD    string
+	PreFix string
+	//ReTry   int
 	TimeOut time.Duration
 }
 

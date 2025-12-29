@@ -6,10 +6,12 @@
 
 package easyCon
 
+import "strings"
+
 func NewMqttMonitor(setting MqttSetting, callback AdapterCallBack) IAdapter {
-	setting.IsRandomClientID = true
+	//setting.IsRandomClientID = true
 	setting.IsWaitLink = false
-	setting.Module = "Monitor"
+	//setting.Module = "Monitor"
 	f := callback.OnLinked
 	callback.OnLinked = func(adapter IAdapter) {
 		if callback.OnNoticeRec != nil {
@@ -47,12 +49,21 @@ func NewCGoMonitor(setting CoreSetting, callback AdapterCallBack, onWrite func([
 		}
 		if callback.OnReqRec != nil {
 			adapter.GetEngineCallback().OnSubscribe(BuildReqTopic(setting.PreFix, "#"), EPTypeReq, func(pack IPack) {
-				callback.OnReqRec(*pack.(*PackReq))
+				reqPack := *pack.(*PackReq)
+				if strings.HasPrefix(reqPack.From, setting.Module) { //来自自己的就不需要再触发了
+					return
+				}
+
+				callback.OnReqRec(reqPack)
 			})
 		}
 		if callback.OnRespRec != nil {
 			adapter.GetEngineCallback().OnSubscribe(BuildRespTopic(setting.PreFix, "#"), EPTypeResp, func(pack IPack) {
-				callback.OnRespRec(*pack.(*PackResp))
+				resp := *pack.(*PackResp)
+				if strings.HasPrefix(resp.From, setting.Module) { //来自自己的就不需要再触发了
+					return
+				}
+				callback.OnRespRec(resp)
 			})
 		}
 

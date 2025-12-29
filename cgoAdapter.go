@@ -99,24 +99,29 @@ func (adapter *cgoAdapter) callFunc(t topicBack, raw []byte, topic string) {
 		pack, err = unmarshalPack(EPTypeReq, raw)
 		if err != nil {
 			adapter.Err("Deserialize Req error", err)
+			return
 		}
 	case EPTypeResp:
 		pack, err = unmarshalPack(EPTypeResp, raw)
 		if err != nil {
 			adapter.Err("Deserialize Resp error", err)
+			return
 		}
 	case EPTypeNotice:
 		pack, err = unmarshalPack(EPTypeNotice, raw)
 		if err != nil {
 			adapter.Err("Deserialize Notice error", err)
+			return
 		}
 	case EPTypeLog:
 		pack, err = unmarshalPack(EPTypeLog, raw)
 		if err != nil {
 			adapter.Err("Deserialize Log error", err)
+			return
 		}
 	default:
 		adapter.Err("unknown topic", fmt.Errorf("unknown topic %s", topic))
+		return
 	}
 	t.Func(pack)
 }
