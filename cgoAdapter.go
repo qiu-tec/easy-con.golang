@@ -83,9 +83,6 @@ func (adapter *cgoAdapter) readLoop() {
 				}
 
 			}
-
-		default:
-			continue
 		}
 
 	}

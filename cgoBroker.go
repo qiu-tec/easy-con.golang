@@ -7,7 +7,6 @@
 package easyCon
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -57,33 +56,39 @@ func (broker *CgoBroker) RegClient(id string, onRead func([]byte)) {
 }
 
 func (broker *CgoBroker) onSend(topic string, cgoRaw []byte) {
-	broker.lock.RLock()
-	defer broker.lock.RUnlock()
-	modules, ok := broker.topics[topic]
 
+	var modulesToNotify []func([]byte)
+
+	broker.lock.RLock()
+	modules, ok := broker.topics[topic]
 	if ok {
 		for module := range modules {
 			f, b := broker.clients[module]
-			if !b {
-				broker.err(fmt.Errorf("unknown module %s", module))
-				continue
+			if b {
+				modulesToNotify = append(modulesToNotify, f)
 			}
-			f(cgoRaw)
+
 		}
 	}
+	broker.lock.RUnlock()
 
 	monitorTopic := getMonitorTopic(topic)
+	broker.lock.RLock()
+
 	modules, ok = broker.topics[monitorTopic]
 	if ok {
 		for module := range modules {
 			f, b := broker.clients[module]
 			if b {
-				f(cgoRaw)
+				modulesToNotify = append(modulesToNotify, f)
 			}
-
 		}
 	}
-
+	broker.lock.RUnlock()
+	// 在锁外执行消息发送
+	for _, f := range modulesToNotify {
+		f(cgoRaw)
+	}
 }
 func (broker *CgoBroker) onReq(pack PackReq) (EResp, any) {
 	switch pack.Route {

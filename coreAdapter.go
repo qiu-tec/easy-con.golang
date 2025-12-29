@@ -218,17 +218,26 @@ func (adapter *coreAdapter) reqInner(pack PackReq, timeout int) PackResp {
 	pre := adapter.setting.PreFix
 	to := pre + pack.To
 	topic := BuildReqTopic(pre, to)
+
+	// ✅ 先创建响应通道并注册，再发送请求，避免响应在注册前到达
+	respChan := make(chan PackResp)
+	adapter.mu.Lock()
+	adapter.respDict[pack.Id] = respChan
+	adapter.mu.Unlock()
+
+	// 注册完成后再发送请求
 	e := adapter.engineCallback.OnPublish(topic, false, &pack)
 	if e != nil {
+		// 发送失败，清理已注册的通道
+		adapter.mu.Lock()
+		delete(adapter.respDict, pack.Id)
+		adapter.mu.Unlock()
 		return PackResp{
 			RespCode: ERespError,
 			Error:    e.Error(),
 		}
 	}
-	respChan := make(chan PackResp)
-	adapter.mu.Lock()
-	adapter.respDict[pack.Id] = respChan
-	adapter.mu.Unlock()
+
 	select {
 	case resp := <-respChan:
 		adapter.mu.Lock()
