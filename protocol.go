@@ -514,6 +514,17 @@ func newRespPack(req PackReq, code EResp, content any) PackResp {
 	}
 	pack.PType = EPTypeResp
 
+	// 在序列化之前处理 error 类型
+	if code != ERespSuccess && content != nil {
+		if err, ok := content.(error); ok {
+			pack.Error = err.Error()
+			content = nil // 设置为 nil，序列化为空
+		} else if str, ok := content.(string); ok {
+			pack.Error = str
+			content = nil
+		}
+	}
+
 	// 序列化 content
 	if content != nil {
 		var err error
@@ -525,15 +536,6 @@ func newRespPack(req PackReq, code EResp, content any) PackResp {
 		pack.Content = []byte{}
 	}
 
-	// 处理错误情况
-	if pack.RespCode != ERespSuccess && content != nil {
-		if err, ok := content.(error); ok {
-			pack.Error = err.Error()
-			pack.Content = []byte{}
-		} else {
-			pack.Error = fmt.Sprintf("%v", content)
-		}
-	}
 	return pack
 }
 
