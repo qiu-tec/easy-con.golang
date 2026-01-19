@@ -141,7 +141,40 @@ func deserialize(data []byte, p any) error {
 	return err
 }
 func (p *PackReq) Raw() ([]byte, error) {
-	return serialize(p)
+	// 1. 构建 Header JSON
+	header := PackReqHeader{
+		PackBaseHeader: PackBaseHeader{
+			PType: p.PType,
+			Id:    p.Id,
+		},
+		From:    p.From,
+		ReqTime: p.ReqTime,
+		To:      p.To,
+		Route:   p.Route,
+	}
+	headerJson, err := json.Marshal(header)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Content 已经是 []byte
+	contentBytes := p.Content
+	if contentBytes == nil {
+		contentBytes = []byte{}
+	}
+
+	// 3. 打包: [PackType][HeadLen(2)][Header JSON][Content]
+	headLen := len(headerJson)
+	totalLen := 3 + headLen + len(contentBytes)
+
+	buf := make([]byte, totalLen)
+	buf[0] = PackTypeReq
+	buf[1] = byte(headLen >> 8)   // 大端序
+	buf[2] = byte(headLen)
+	copy(buf[3:], headerJson)
+	copy(buf[3+headLen:], contentBytes)
+
+	return buf, nil
 }
 
 // PackResp 响应
@@ -153,7 +186,45 @@ type PackResp struct {
 }
 
 func (p *PackResp) Raw() ([]byte, error) {
-	return serialize(p)
+	// 1. 构建 Header JSON
+	header := PackRespHeader{
+		PackReqHeader: PackReqHeader{
+			PackBaseHeader: PackBaseHeader{
+				PType: p.PType,
+				Id:    p.Id,
+			},
+			From:    p.From,
+			ReqTime: p.ReqTime,
+			To:      p.To,
+			Route:   p.Route,
+		},
+		RespTime: p.RespTime,
+		RespCode: int(p.RespCode),
+		Error:    p.Error,
+	}
+	headerJson, err := json.Marshal(header)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Content 已经是 []byte
+	contentBytes := p.Content
+	if contentBytes == nil {
+		contentBytes = []byte{}
+	}
+
+	// 3. 打包: [PackType][HeadLen(2)][Header JSON][Content]
+	headLen := len(headerJson)
+	totalLen := 3 + headLen + len(contentBytes)
+
+	buf := make([]byte, totalLen)
+	buf[0] = PackTypeResp
+	buf[1] = byte(headLen >> 8)   // 大端序
+	buf[2] = byte(headLen)
+	copy(buf[3:], headerJson)
+	copy(buf[3+headLen:], contentBytes)
+
+	return buf, nil
 }
 
 type PackLog struct {
@@ -166,7 +237,38 @@ type PackLog struct {
 }
 
 func (p *PackLog) Raw() ([]byte, error) {
-	return serialize(p)
+	// 1. 构建 Header JSON (Content 在 header 里)
+	header := PackLogHeader{
+		PackBaseHeader: PackBaseHeader{
+			PType: p.PType,
+			Id:    p.Id,
+		},
+		From:    p.From,
+		Level:   string(p.Level),
+		LogTime: p.LogTime,
+		Error:   p.Error,
+		Content: p.Content, // 日志的 content 在 header 里
+	}
+	headerJson, err := json.Marshal(header)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. PackLog 没有 Content，使用空 []byte
+	contentBytes := []byte{}
+
+	// 3. 打包: [PackType][HeadLen(2)][Header JSON][Content]
+	headLen := len(headerJson)
+	totalLen := 3 + headLen + len(contentBytes)
+
+	buf := make([]byte, totalLen)
+	buf[0] = PackTypeLog
+	buf[1] = byte(headLen >> 8)   // 大端序
+	buf[2] = byte(headLen)
+	copy(buf[3:], headerJson)
+	copy(buf[3+headLen:], contentBytes)
+
+	return buf, nil
 }
 
 type PackNotice struct {
@@ -178,7 +280,39 @@ type PackNotice struct {
 }
 
 func (p *PackNotice) Raw() ([]byte, error) {
-	return serialize(p)
+	// 1. 构建 Header JSON
+	header := PackNoticeHeader{
+		PackBaseHeader: PackBaseHeader{
+			PType: p.PType,
+			Id:    p.Id,
+		},
+		From:   p.From,
+		Route:  p.Route,
+		Retain: p.Retain,
+	}
+	headerJson, err := json.Marshal(header)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Content 已经是 []byte
+	contentBytes := p.Content
+	if contentBytes == nil {
+		contentBytes = []byte{}
+	}
+
+	// 3. 打包: [PackType][HeadLen(2)][Header JSON][Content]
+	headLen := len(headerJson)
+	totalLen := 3 + headLen + len(contentBytes)
+
+	buf := make([]byte, totalLen)
+	buf[0] = PackTypeNotice
+	buf[1] = byte(headLen >> 8)   // 大端序
+	buf[2] = byte(headLen)
+	copy(buf[3:], headerJson)
+	copy(buf[3+headLen:], contentBytes)
+
+	return buf, nil
 }
 func (p *PackNotice) IsRetain() bool {
 	return p.Retain
@@ -349,6 +483,16 @@ func newReqPack(from, to string, route string, content any) PackReq {
 }
 
 func newReqPackInner(from, to string, route string, pType EPType, content any) PackReq {
+	var contentBytes []byte
+	if content != nil {
+		var err error
+		contentBytes, err = json.Marshal(content)
+		if err != nil {
+			contentBytes = []byte{}
+		}
+	} else {
+		contentBytes = []byte{}
+	}
 	return PackReq{
 		packBase: packBase{
 			PType: pType,
@@ -358,7 +502,7 @@ func newReqPackInner(from, to string, route string, pType EPType, content any) P
 		ReqTime: getNowStr(),
 		To:      to,
 		Route:   route,
-		Content: content,
+		Content: contentBytes,
 	}
 }
 
@@ -369,11 +513,23 @@ func newRespPack(req PackReq, code EResp, content any) PackResp {
 		RespCode: code,
 	}
 	pack.PType = EPTypeResp
-	pack.Content = content
-	if pack.RespCode != ERespSuccess && pack.Content != nil {
+
+	// 序列化 content
+	if content != nil {
+		var err error
+		pack.Content, err = json.Marshal(content)
+		if err != nil {
+			pack.Content = []byte{}
+		}
+	} else {
+		pack.Content = []byte{}
+	}
+
+	// 处理错误情况
+	if pack.RespCode != ERespSuccess && content != nil {
 		if err, ok := content.(error); ok {
 			pack.Error = err.Error()
-			pack.Content = nil
+			pack.Content = []byte{}
 		} else {
 			pack.Error = fmt.Sprintf("%v", content)
 		}
@@ -382,6 +538,16 @@ func newRespPack(req PackReq, code EResp, content any) PackResp {
 }
 
 func newNoticePack(module, route string, content any) PackNotice {
+	var contentBytes []byte
+	if content != nil {
+		var err error
+		contentBytes, err = json.Marshal(content)
+		if err != nil {
+			contentBytes = []byte{}
+		}
+	} else {
+		contentBytes = []byte{}
+	}
 	return PackNotice{
 		packBase: packBase{
 			PType: EPTypeNotice,
@@ -389,7 +555,7 @@ func newNoticePack(module, route string, content any) PackNotice {
 		},
 		From:    module,
 		Route:   route,
-		Content: content,
+		Content: contentBytes,
 	}
 }
 

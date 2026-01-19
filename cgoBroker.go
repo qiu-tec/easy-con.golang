@@ -7,6 +7,7 @@
 package easyCon
 
 import (
+	"encoding/json"
 	"sync"
 )
 
@@ -93,7 +94,11 @@ func (broker *CgoBroker) onSend(topic string, cgoRaw []byte) {
 func (broker *CgoBroker) onReq(pack PackReq) (EResp, any) {
 	switch pack.Route {
 	case "Subscribe":
-		topic := pack.Content.(string)
+		var topic string
+		err := json.Unmarshal(pack.Content, &topic)
+		if err != nil {
+			return ERespBadReq, nil
+		}
 		broker.lock.Lock()
 		defer broker.lock.Unlock()
 		if broker.topics[topic] == nil {
