@@ -642,10 +642,6 @@ func unmarshalPackNew(data []byte) (IPack, error) {
 	headerBytes := data[3 : 3+headLen]
 	contentBytes := data[3+headLen:]
 
-	if len(contentBytes) == 0 {
-		contentBytes = []byte{}
-	}
-
 	switch packType {
 	case PackTypeReq:
 		var header PackReqHeader
