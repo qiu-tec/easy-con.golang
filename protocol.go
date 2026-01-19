@@ -16,14 +16,62 @@ import (
 // EProtocol 协议
 type EProtocol string
 
+// PackType 常量定义
 const (
-	// EProtocolMQTT MQTT协议
-	EProtocolMQTT EProtocol = "MQTT"
-
-	EProtocolMQTTSync EProtocol = "MQTTSync"
-	// EProtocolHTTP HTTP协议
-	//EProtocolHTTP EProtocol = "HTTP"
+	PackTypeReq    byte = 0x01
+	PackTypeResp   byte = 0x02
+	PackTypeNotice byte = 0x03
+	PackTypeLog    byte = 0x04
+	PackTypeOld    byte = 0x7B // '{' 用于识别旧协议
 )
+
+// 新协议的 Header 结构体
+type PackBaseHeader struct {
+	PType EPType
+	Id    uint64
+}
+
+type PackReqHeader struct {
+	PackBaseHeader
+	From    string
+	ReqTime string
+	To      string
+	Route   string
+}
+
+type PackRespHeader struct {
+	PackReqHeader
+	RespTime string
+	RespCode int
+	Error    string
+}
+
+type PackNoticeHeader struct {
+	PackBaseHeader
+	From  string
+	Route string
+	Retain bool
+}
+
+type PackLogHeader struct {
+	PackBaseHeader
+	From    string
+	Level   string
+	LogTime string
+	Error   string
+	Content string // 日志的 content 在 header 里
+}
+
+// const (
+//
+//	// EProtocolMQTT MQTT协议
+//	EProtocolMQTT EProtocol = "MQTT"
+//
+//	EProtocolMQTTSync EProtocol = "MQTTSync"
+//	// EProtocolHTTP HTTP协议
+//	//EProtocolHTTP EProtocol = "HTTP"
+//
+// )
 const (
 	NoticeTopic       string = "Notice"
 	RetainNoticeTopic string = "RetainNotice"
@@ -152,14 +200,14 @@ const (
 
 type EProxyMode string
 
-const (
-	// EProxyModeForward mqttProxy Req from A -> B
-	EProxyModeForward EProxyMode = "Forward"
-	// EProxyModeReverse mqttProxy Req from B -> A
-	EProxyModeReverse EProxyMode = "Reverse"
-	// EProxyModeBoth mqttProxy Req Both way
-	EProxyModeBoth EProxyMode = "Both"
-)
+//const (
+//	// EProxyModeForward mqttProxy Req from A -> B
+//	EProxyModeForward EProxyMode = "Forward"
+//	// EProxyModeReverse mqttProxy Req from B -> A
+//	EProxyModeReverse EProxyMode = "Reverse"
+//	// EProxyModeBoth mqttProxy Req Both way
+//	EProxyModeBoth EProxyMode = "Both"
+//)
 
 // EStatus 访问器状态
 type EStatus string
@@ -254,25 +302,25 @@ func getNoticeId() uint64 {
 	return atomic.AddUint64(&noticeId, 1)
 }
 
-// getRespCodeName 获取EResp枚举的名称
-func getRespCodeName(code EResp) string {
-	switch code {
-	case ERespUnLinked:
-		return "ERespUnLinked"
-	case ERespSuccess:
-		return "ERespSuccess"
-	case ERespBadReq:
-		return "ERespBadReq"
-	case ERespRouteNotFind:
-		return "ERespRouteNotFind"
-	case ERespError:
-		return "ERespError"
-	case ERespTimeout:
-		return "ERespTimeout"
-	default:
-		return fmt.Sprintf("Unknown(%d)", code)
-	}
-}
+//// getRespCodeName 获取EResp枚举的名称
+//func getRespCodeName(code EResp) string {
+//	switch code {
+//	case ERespUnLinked:
+//		return "ERespUnLinked"
+//	case ERespSuccess:
+//		return "ERespSuccess"
+//	case ERespBadReq:
+//		return "ERespBadReq"
+//	case ERespRouteNotFind:
+//		return "ERespRouteNotFind"
+//	case ERespError:
+//		return "ERespError"
+//	case ERespTimeout:
+//		return "ERespTimeout"
+//	default:
+//		return fmt.Sprintf("Unknown(%d)", code)
+//	}
+//}
 
 func newLogPack(module string, level ELogLevel, content string, err error) PackLog {
 	eStr := ""
