@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-type ReqHandler func(pack PackReq) (EResp, any)
+type ReqHandler func(pack PackReq) (EResp, []byte)
 type OnReqHandler func(pack PackReq)
 type RespHandler func(pack PackResp)
 type NoticeHandler func(PackNotice)
