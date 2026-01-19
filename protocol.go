@@ -118,7 +118,7 @@ type PackReq struct {
 	ReqTime string
 	To      string
 	Route   string
-	Content any
+	Content []byte
 }
 
 func (p *PackReq) Target() string {
@@ -174,7 +174,7 @@ type PackNotice struct {
 	From    string
 	Route   string
 	Retain  bool
-	Content any
+	Content []byte
 }
 
 func (p *PackNotice) Raw() ([]byte, error) {
