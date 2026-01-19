@@ -593,7 +593,7 @@ func BuildLogTopic(prefix string) string {
 	}
 	return prefix + LogTopic
 }
-func unmarshalPack(pType EPType, data []byte) (IPack, error) {
+func unmarshalPackOld(pType EPType, data []byte) (IPack, error) {
 	switch pType {
 	case EPTypeReq:
 		var pack PackReq
@@ -625,6 +625,113 @@ func unmarshalPack(pType EPType, data []byte) (IPack, error) {
 		return &pack, nil
 	}
 	return nil, fmt.Errorf("unknown pack type %s", pType)
+}
+
+func unmarshalPackNew(data []byte) (IPack, error) {
+	if len(data) < 3 {
+		return nil, fmt.Errorf("invalid pack length: %d", len(data))
+	}
+
+	packType := data[0]
+	headLen := int(data[1])<<8 | int(data[2])
+
+	if len(data) < 3+headLen {
+		return nil, fmt.Errorf("invalid header length: dataLen=%d, headLen=%d", len(data), headLen)
+	}
+
+	headerBytes := data[3 : 3+headLen]
+	contentBytes := data[3+headLen:]
+
+	if len(contentBytes) == 0 {
+		contentBytes = []byte{}
+	}
+
+	switch packType {
+	case PackTypeReq:
+		var header PackReqHeader
+		if err := json.Unmarshal(headerBytes, &header); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal REQ header: %w", err)
+		}
+		return &PackReq{
+			packBase: packBase{PType: header.PType, Id: header.Id},
+			From:     header.From,
+			To:       header.To,
+			Route:    header.Route,
+			ReqTime:  header.ReqTime,
+			Content:  contentBytes,
+		}, nil
+
+	case PackTypeResp:
+		var header PackRespHeader
+		if err := json.Unmarshal(headerBytes, &header); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal RESP header: %w", err)
+		}
+		return &PackResp{
+			PackReq: PackReq{
+				packBase: packBase{PType: header.PType, Id: header.Id},
+				From:     header.From,
+				To:       header.To,
+				Route:    header.Route,
+				ReqTime:  header.ReqTime,
+				Content:  contentBytes,
+			},
+			RespTime: header.RespTime,
+			RespCode: EResp(header.RespCode),
+			Error:    header.Error,
+		}, nil
+
+	case PackTypeNotice:
+		var header PackNoticeHeader
+		if err := json.Unmarshal(headerBytes, &header); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal NOTICE header: %w", err)
+		}
+		return &PackNotice{
+			packBase: packBase{PType: header.PType, Id: header.Id},
+			From:     header.From,
+			Route:    header.Route,
+			Retain:   header.Retain,
+			Content:  contentBytes,
+		}, nil
+
+	case PackTypeLog:
+		var header PackLogHeader
+		if err := json.Unmarshal(headerBytes, &header); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal LOG header: %w", err)
+		}
+		return &PackLog{
+			packBase: packBase{PType: header.PType, Id: header.Id},
+			From:     header.From,
+			Level:    ELogLevel(header.Level),
+			LogTime:  header.LogTime,
+			Error:    header.Error,
+			Content:  header.Content,
+		}, nil
+
+	default:
+		return nil, fmt.Errorf("unknown pack type: 0x%02x", packType)
+	}
+}
+
+// UnmarshalPack 统一的反序列化入口，自动识别新旧协议
+func UnmarshalPack(data []byte) (IPack, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("empty data")
+	}
+
+	// 根据第一个字节判断协议类型
+	if data[0] == PackTypeOld { // '{'
+		// 旧协议：需要先读取 PType 字段来确定类型
+		var typeOnly struct {
+			PType EPType `json:"PType"`
+		}
+		if err := json.Unmarshal(data, &typeOnly); err != nil {
+			return nil, fmt.Errorf("failed to detect old protocol type: %w", err)
+		}
+		return unmarshalPackOld(typeOnly.PType, data)
+	}
+
+	// 新协议
+	return unmarshalPackNew(data)
 }
 
 //func BuildInternalNoticeTopic(prefix, route string) string {

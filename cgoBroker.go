@@ -35,9 +35,10 @@ func (broker *CgoBroker) Publish(cgoRaw []byte) error {
 		broker.err(err)
 	}
 	if topic == "Request/Broker" { //需要broker处理的请求
-		pack, e := unmarshalPack(EPTypeReq, raw)
+		pack, e := UnmarshalPack(raw)
 		if e != nil {
 			broker.err(e)
+			return e
 		}
 		code, resp := broker.onReq(*pack.(*PackReq))
 		respPack := newRespPack(*pack.(*PackReq), code, resp)

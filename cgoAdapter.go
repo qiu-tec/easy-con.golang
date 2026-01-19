@@ -89,35 +89,9 @@ func (adapter *cgoAdapter) readLoop() {
 }
 
 func (adapter *cgoAdapter) callFunc(t topicBack, raw []byte, topic string) {
-	var err error
-	var pack IPack
-	switch t.EType {
-	case EPTypeReq:
-		pack, err = unmarshalPack(EPTypeReq, raw)
-		if err != nil {
-			adapter.Err("Deserialize Req error", err)
-			return
-		}
-	case EPTypeResp:
-		pack, err = unmarshalPack(EPTypeResp, raw)
-		if err != nil {
-			adapter.Err("Deserialize Resp error", err)
-			return
-		}
-	case EPTypeNotice:
-		pack, err = unmarshalPack(EPTypeNotice, raw)
-		if err != nil {
-			adapter.Err("Deserialize Notice error", err)
-			return
-		}
-	case EPTypeLog:
-		pack, err = unmarshalPack(EPTypeLog, raw)
-		if err != nil {
-			adapter.Err("Deserialize Log error", err)
-			return
-		}
-	default:
-		adapter.Err("unknown topic", fmt.Errorf("unknown topic %s", topic))
+	pack, err := UnmarshalPack(raw)
+	if err != nil {
+		adapter.Err("Deserialize error", err)
 		return
 	}
 	t.Func(pack)
