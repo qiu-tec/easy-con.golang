@@ -102,23 +102,10 @@ func (adapter *mqttAdapter) PublishRaw(topic string, isRetain bool, data []byte)
 
 // SubscribeInternalNotice Subscribe InternalNotice if route is "", route will be # and will subscribe all
 func (adapter *mqttAdapter) onSubscribe(topic string, packType EPType, f func(pack IPack)) {
-	var pack IPack
-	switch packType {
-	case EPTypeNotice:
-		pack = &PackNotice{}
-	case EPTypeLog:
-		pack = &PackLog{}
-	case EPTypeReq:
-		pack = &PackReq{}
-	case EPTypeResp:
-		pack = &PackResp{}
-	default:
-		return
-	}
 	adapter.client.Subscribe(topic, 0, func(_ mqtt.Client, message mqtt.Message) {
-		err := deserialize(message.Payload(), pack)
+		pack, err := UnmarshalPack(message.Payload())
 		if err != nil {
-			adapter.Err("Deserialize Notice error", err)
+			adapter.Err("Deserialize error", err)
 			return
 		}
 		f(pack)
