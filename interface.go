@@ -58,6 +58,8 @@ type IAdapter interface {
 
 	Publish(topic string, isRetain bool, pack IPack) error
 
+	PublishRaw(topic string, isRetain bool, data []byte) error
+
 	GetEngineCallback() EngineCallback
 	iLogger
 }

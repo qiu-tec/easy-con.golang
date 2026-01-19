@@ -91,12 +91,19 @@ func (p *proxy) onNoticeA(notice PackNotice) {
 	}
 	notice.From = p.sb.Module + "/" + notice.From
 	topic := BuildNoticeTopic(p.sb.PreFix, notice.Route)
-	err := p.b.Publish(topic, false, &notice)
+
+	rawData, err := notice.Raw()
 	if err != nil {
-		fmt.Printf("[%s]:mqttProxy notice  (%d) route %s  A-> B Failed because %s\r\n", time.Now().Format("15:04:05.000"), notice.Id, notice.Route, err.Error())
+		fmt.Printf("[%s]:mqttProxy notice raw failed: %s\r\n",
+			time.Now().Format("15:04:05.000"), err.Error())
 		return
 	}
 
+	err = p.b.PublishRaw(topic, false, rawData)
+	if err != nil {
+		fmt.Printf("[%s]:mqttProxy notice (%d) A->B failed: %s\r\n",
+			time.Now().Format("15:04:05.000"), notice.Id, err.Error())
+	}
 }
 
 func (p *proxy) onRetainNoticeA(notice PackNotice) {
@@ -105,10 +112,18 @@ func (p *proxy) onRetainNoticeA(notice PackNotice) {
 	}
 	notice.From = p.sb.Module + "/" + notice.From
 	topic := BuildRetainNoticeTopic(p.sb.PreFix, notice.Route)
-	err := p.b.Publish(topic, true, &notice)
+
+	rawData, err := notice.Raw()
 	if err != nil {
-		fmt.Printf("[%s]:mqttProxy retain notice  (%d) route %s  A-> B Failed because %s\r\n", time.Now().Format("15:04:05.000"), notice.Id, notice.Route, err.Error())
+		fmt.Printf("[%s]:mqttProxy retain notice raw failed: %s\r\n",
+			time.Now().Format("15:04:05.000"), err.Error())
 		return
+	}
+
+	err = p.b.PublishRaw(topic, true, rawData)
+	if err != nil {
+		fmt.Printf("[%s]:mqttProxy retain notice (%d) A->B failed: %s\r\n",
+			time.Now().Format("15:04:05.000"), notice.Id, err.Error())
 	}
 }
 
@@ -119,10 +134,18 @@ func (p *proxy) onLogA(log PackLog) {
 	log.From = p.sb.Module + "/" + log.From
 
 	topic := BuildLogTopic(p.sb.PreFix)
-	err := p.b.Publish(topic, false, &log)
+
+	rawData, err := log.Raw()
 	if err != nil {
-		fmt.Printf("[%s]:mqttProxy log  (%d) A-> B Failed because %s\r\n", time.Now().Format("15:04:05.000"), log.Id, err.Error())
+		fmt.Printf("[%s]:mqttProxy log raw failed: %s\r\n",
+			time.Now().Format("15:04:05.000"), err.Error())
 		return
+	}
+
+	err = p.b.PublishRaw(topic, false, rawData)
+	if err != nil {
+		fmt.Printf("[%s]:mqttProxy log (%d) A->B failed: %s\r\n",
+			time.Now().Format("15:04:05.000"), log.Id, err.Error())
 	}
 }
 
@@ -132,10 +155,18 @@ func (p *proxy) onNoticeB(notice PackNotice) {
 	}
 	notice.From = p.sa.Module + "/" + notice.From
 	topic := BuildNoticeTopic(p.sa.PreFix, notice.Route)
-	err := p.a.Publish(topic, false, &notice)
+
+	rawData, err := notice.Raw()
 	if err != nil {
-		fmt.Printf("[%s]:mqttProxy notice  (%d) route %s  B-> A Failed because %s\r\n", time.Now().Format("15:04:05.000"), notice.Id, notice.Route, err.Error())
+		fmt.Printf("[%s]:mqttProxy notice raw failed: %s\r\n",
+			time.Now().Format("15:04:05.000"), err.Error())
 		return
+	}
+
+	err = p.a.PublishRaw(topic, false, rawData)
+	if err != nil {
+		fmt.Printf("[%s]:mqttProxy notice (%d) B->A failed: %s\r\n",
+			time.Now().Format("15:04:05.000"), notice.Id, err.Error())
 	}
 }
 
@@ -148,10 +179,18 @@ func (p *proxy) onRetainNoticeB(notice PackNotice) {
 	}
 	notice.From = p.sb.Module + "/" + notice.From
 	topic := BuildRetainNoticeTopic(p.sa.PreFix, notice.Route)
-	err := p.a.Publish(topic, true, &notice)
+
+	rawData, err := notice.Raw()
 	if err != nil {
-		fmt.Printf("[%s]:mqttProxy retain notice  (%d) route %s  B-> A Failed because %s\r\n", time.Now().Format("15:04:05.000"), notice.Id, notice.Route, err.Error())
+		fmt.Printf("[%s]:mqttProxy retain notice raw failed: %s\r\n",
+			time.Now().Format("15:04:05.000"), err.Error())
 		return
+	}
+
+	err = p.a.PublishRaw(topic, true, rawData)
+	if err != nil {
+		fmt.Printf("[%s]:mqttProxy retain notice (%d) B->A failed: %s\r\n",
+			time.Now().Format("15:04:05.000"), notice.Id, err.Error())
 	}
 }
 
@@ -164,46 +203,79 @@ func (p *proxy) onLogB(log PackLog) {
 	}
 	log.From = p.sa.Module + "/" + log.From
 	topic := BuildLogTopic(p.sa.PreFix)
-	err := p.a.Publish(topic, false, &log)
+
+	rawData, err := log.Raw()
 	if err != nil {
-		fmt.Printf("[%s]:mqttProxy log  (%d)  B-> A Failed because %s\r\n", time.Now().Format("15:04:05.000"), log.Id, err.Error())
+		fmt.Printf("[%s]:mqttProxy log raw failed: %s\r\n",
+			time.Now().Format("15:04:05.000"), err.Error())
 		return
+	}
+
+	err = p.a.PublishRaw(topic, false, rawData)
+	if err != nil {
+		fmt.Printf("[%s]:mqttProxy log (%d) B->A failed: %s\r\n",
+			time.Now().Format("15:04:05.000"), log.Id, err.Error())
 	}
 }
 
 // OnReqDetectedA 正向代理 让来自A的请求 转发给B
 func (p *proxy) onReqA(pack PackReq) (EResp, []byte) {
 	if pack.To == "Broker" {
-		return ERespBypass, nil
+		return ERespBypass, []byte{}
 	}
 	if strings.HasPrefix(pack.From, p.sa.Module) { //来自自己
-		return ERespBypass, nil
+		return ERespBypass, []byte{}
 	}
-	resp := p.b.Req(pack.To, pack.Route, pack.Content)
-	topic := BuildRespTopic(p.sa.PreFix, pack.From)
-	respPack := newRespPack(pack, resp.RespCode, resp.Content)
-	err := p.a.Publish(topic, false, &respPack)
+
+	// 直接转发原始字节，零拷贝
+	topic := BuildReqTopic(p.sb.PreFix, pack.To)
+
+	// 获取原始消息
+	rawData, err := pack.Raw()
 	if err != nil {
-		fmt.Printf("[%s]:mqttProxy resp  (%d) A-> B Failed because %s\r\n", time.Now().Format("15:04:05.000"), pack.Id, err.Error())
+		fmt.Printf("[%s]:mqttProxy pack raw failed: %s\r\n",
+			time.Now().Format("15:04:05.000"), err.Error())
+		return ERespError, []byte{}
 	}
-	return ERespBypass, nil
+
+	// 直接发布原始字节
+	err = p.b.PublishRaw(topic, false, rawData)
+	if err != nil {
+		fmt.Printf("[%s]:mqttProxy req (%d) A->B failed: %s\r\n",
+			time.Now().Format("15:04:05.000"), pack.Id, err.Error())
+		return ERespError, []byte{}
+	}
+
+	return ERespBypass, []byte{}
 }
 
 // OnReqDetectedB 反向代理
 func (p *proxy) onReqB(pack PackReq) (EResp, []byte) {
 
 	if strings.HasPrefix(pack.From, p.sb.Module) { //来自自己
-		return ERespBypass, nil
+		return ERespBypass, []byte{}
 	}
 
-	resp := p.a.Req(pack.To, pack.Route, pack.Content)
-	topic := BuildRespTopic(p.sb.PreFix, pack.From)
-	respPack := newRespPack(pack, resp.RespCode, resp.Content)
-	err := p.b.Publish(topic, false, &respPack)
+	// 直接转发原始字节，零拷贝
+	topic := BuildReqTopic(p.sa.PreFix, pack.To)
+
+	// 获取原始消息
+	rawData, err := pack.Raw()
 	if err != nil {
-		fmt.Printf("[%s]:mqttProxy resp  (%d) A-> B Failed because %s\r\n", time.Now().Format("15:04:05.000"), pack.Id, err.Error())
+		fmt.Printf("[%s]:mqttProxy pack raw failed: %s\r\n",
+			time.Now().Format("15:04:05.000"), err.Error())
+		return ERespError, []byte{}
 	}
-	return ERespBypass, nil
+
+	// 直接发布原始字节
+	err = p.a.PublishRaw(topic, false, rawData)
+	if err != nil {
+		fmt.Printf("[%s]:mqttProxy req (%d) B->A failed: %s\r\n",
+			time.Now().Format("15:04:05.000"), pack.Id, err.Error())
+		return ERespError, []byte{}
+	}
+
+	return ERespBypass, []byte{}
 }
 
 func getMonitorTopic(topic string) string {
