@@ -485,10 +485,16 @@ func newReqPack(from, to string, route string, content any) PackReq {
 func newReqPackInner(from, to string, route string, pType EPType, content any) PackReq {
 	var contentBytes []byte
 	if content != nil {
-		var err error
-		contentBytes, err = json.Marshal(content)
-		if err != nil {
-			contentBytes = []byte{}
+		// 如果已经是 []byte，直接使用
+		if bytes, ok := content.([]byte); ok {
+			contentBytes = bytes
+		} else {
+			// 否则序列化为 JSON
+			var err error
+			contentBytes, err = json.Marshal(content)
+			if err != nil {
+				contentBytes = []byte{}
+			}
 		}
 	} else {
 		contentBytes = []byte{}
@@ -525,12 +531,18 @@ func newRespPack(req PackReq, code EResp, content any) PackResp {
 		}
 	}
 
-	// 序列化 content
+	// 处理 content
 	if content != nil {
-		var err error
-		pack.Content, err = json.Marshal(content)
-		if err != nil {
-			pack.Content = []byte{}
+		// 如果已经是 []byte，直接使用
+		if bytes, ok := content.([]byte); ok {
+			pack.Content = bytes
+		} else {
+			// 否则序列化为 JSON
+			var err error
+			pack.Content, err = json.Marshal(content)
+			if err != nil {
+				pack.Content = []byte{}
+			}
 		}
 	} else {
 		pack.Content = []byte{}
@@ -542,10 +554,16 @@ func newRespPack(req PackReq, code EResp, content any) PackResp {
 func newNoticePack(module, route string, content any) PackNotice {
 	var contentBytes []byte
 	if content != nil {
-		var err error
-		contentBytes, err = json.Marshal(content)
-		if err != nil {
-			contentBytes = []byte{}
+		// 如果已经是 []byte，直接使用
+		if bytes, ok := content.([]byte); ok {
+			contentBytes = bytes
+		} else {
+			// 否则序列化为 JSON
+			var err error
+			contentBytes, err = json.Marshal(content)
+			if err != nil {
+				contentBytes = []byte{}
+			}
 		}
 	} else {
 		contentBytes = []byte{}

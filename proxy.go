@@ -16,9 +16,9 @@ type proxy struct {
 	a IAdapter
 	b IAdapter
 
-	sa                CoreSetting
-	sb                CoreSetting
-	mode              EProxyMode
+	sa CoreSetting
+	sb CoreSetting
+	//mode              EProxyMode
 	proxyModules      []string
 	proxyNotice       bool
 	proxyRetainNotice bool
@@ -28,7 +28,7 @@ type proxy struct {
 func NewCgoMqttProxy(setting MqttProxySetting, onWrite func([]byte) error) (IProxy, func([]byte)) {
 
 	p := &proxy{
-		mode:              EProxyModeForward,
+		//mode:              EProxyModeForward,
 		proxyModules:      nil,
 		proxyNotice:       true,
 		proxyRetainNotice: true,
@@ -172,7 +172,7 @@ func (p *proxy) onLogB(log PackLog) {
 }
 
 // OnReqDetectedA 正向代理 让来自A的请求 转发给B
-func (p *proxy) onReqA(pack PackReq) (EResp, any) {
+func (p *proxy) onReqA(pack PackReq) (EResp, []byte) {
 	if pack.To == "Broker" {
 		return ERespBypass, nil
 	}
@@ -190,7 +190,7 @@ func (p *proxy) onReqA(pack PackReq) (EResp, any) {
 }
 
 // OnReqDetectedB 反向代理
-func (p *proxy) onReqB(pack PackReq) (EResp, any) {
+func (p *proxy) onReqB(pack PackReq) (EResp, []byte) {
 
 	if strings.HasPrefix(pack.From, p.sb.Module) { //来自自己
 		return ERespBypass, nil

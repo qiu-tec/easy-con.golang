@@ -280,23 +280,28 @@ func (adapter *coreAdapter) onRespRec(pack PackResp) {
 
 // onReqRec handle request from reqChan
 func (adapter *coreAdapter) onReqRec(pack PackReq) {
+	resp, content := adapter.adapterCallback.OnReqRec(pack)
 	var respPack PackResp
 
-	defer func() {
-		topic := BuildRespTopic(adapter.setting.PreFix, respPack.Target())
-		e := adapter.engineCallback.OnPublish(topic, false, &respPack)
-		if e != nil {
-			adapter.Err("RESP send error", e)
-			return
-		}
-	}()
+	// content 现在是 []byte 类型，直接使用
+	// 构造响应包时需要特殊处理，因为 newRespPack 期望 any 类型
+	if content == nil {
+		respPack = newRespPack(pack, resp, nil)
+	} else {
+		// 将 []byte 直接传入，newRespPack 会正确处理
+		respPack = newRespPack(pack, resp, content)
+	}
 
-	resp, content := adapter.adapterCallback.OnReqRec(pack)
-	respPack = newRespPack(pack, resp, content)
 	if resp == ERespBypass { // 无需回复
 		return
 	}
 
+	topic := BuildRespTopic(adapter.setting.PreFix, respPack.Target())
+	e := adapter.engineCallback.OnPublish(topic, false, &respPack)
+	if e != nil {
+		adapter.Err("RESP send error", e)
+		return
+	}
 }
 
 func (adapter *coreAdapter) onReqInner(req PackReq) PackResp {
