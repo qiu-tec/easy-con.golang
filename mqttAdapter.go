@@ -26,10 +26,11 @@ func NewMqttAdapter(setting MqttSetting, callback AdapterCallBack) IAdapter {
 func newMqttAdapterInner(setting MqttSetting, callback AdapterCallBack) *mqttAdapter { // afterLink func(client mqtt.Client)
 	adapter := &mqttAdapter{}
 	ecb := EngineCallback{
-		OnLink:      adapter.onLink,
-		OnStop:      adapter.onStop,
-		OnSubscribe: adapter.onSubscribe,
-		OnPublish:   adapter.onPublish,
+		OnLink:       adapter.onLink,
+		OnStop:       adapter.onStop,
+		OnSubscribe:  adapter.onSubscribe,
+		OnPublish:    adapter.onPublish,
+		OnPublishRaw: adapter.PublishRaw,
 	}
 
 	adapter.setting = setting
@@ -80,6 +81,19 @@ func (adapter *mqttAdapter) onPublish(topic string, isRetain bool, pack IPack) e
 	}
 
 	token := adapter.client.Publish(topic, 0, isRetain, raw)
+	if token.Wait() && token.Error() != nil {
+		return token.Error()
+	}
+	return nil
+}
+
+// PublishRaw publishes raw byte data (zero-copy)
+func (adapter *mqttAdapter) PublishRaw(topic string, isRetain bool, data []byte) error {
+	if adapter.client == nil {
+		return fmt.Errorf("client is nil")
+	}
+
+	token := adapter.client.Publish(topic, 0, isRetain, data)
 	if token.Wait() && token.Error() != nil {
 		return token.Error()
 	}

@@ -208,6 +208,11 @@ func (adapter *coreAdapter) Publish(topic string, isRetain bool, pack IPack) err
 	return adapter.engineCallback.OnPublish(topic, isRetain, pack)
 }
 
+// PublishRaw publishes raw byte data (zero-copy)
+func (adapter *coreAdapter) PublishRaw(topic string, isRetain bool, data []byte) error {
+	return adapter.engineCallback.OnPublishRaw(topic, isRetain, data)
+}
+
 // Inner func #########################################################################################
 func (adapter *coreAdapter) reqInner(pack PackReq, timeout int) PackResp {
 	tsp := adapter.setting.TimeOut

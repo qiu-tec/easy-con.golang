@@ -17,6 +17,7 @@ type NoticeHandler func(PackNotice)
 type StatusChangedHandler func(status EStatus)
 type LogHandler func(PackLog)
 type PublishHandler func(topic string, isRetain bool, pack IPack) error
+type PublishRawHandler func(topic string, isRetain bool, data []byte) error
 type SubscribeHandler func(topic string, packType EPType, f func(IPack))
 
 // EngineCallback 引擎回调
@@ -25,6 +26,7 @@ type EngineCallback struct {
 	OnLink      func()
 	OnSubscribe SubscribeHandler
 	OnPublish   PublishHandler
+	OnPublishRaw PublishRawHandler
 }
 type AdapterCallBack struct {
 	OnReqRec          ReqHandler

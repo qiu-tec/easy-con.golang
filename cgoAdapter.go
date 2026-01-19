@@ -34,10 +34,11 @@ func NewCgoAdapter(setting CoreSetting, callback AdapterCallBack, onWrite func([
 		readChan: make(chan []byte, setting.ChannelBufferSize),
 	}
 	ecb := EngineCallback{
-		OnLink:      func() { return },
-		OnStop:      func() (bool, error) { return true, nil },
-		OnSubscribe: adapter.onSubscribe,
-		OnPublish:   adapter.onPublish,
+		OnLink:       func() { return },
+		OnStop:       func() (bool, error) { return true, nil },
+		OnSubscribe:  adapter.onSubscribe,
+		OnPublish:    adapter.onPublish,
+		OnPublishRaw: adapter.PublishRaw,
 	}
 
 	adapter.coreAdapter = newCoreAdapter(setting, ecb, callback)
@@ -131,5 +132,11 @@ func (adapter *cgoAdapter) onSubscribe(topic string, pType EPType, f func(IPack)
 func (adapter *cgoAdapter) onPublish(topic string, _ bool, pack IPack) error {
 	js, _ := pack.Raw()
 	cgoRaw := marshalCgoPack(topic, js)
+	return adapter.onWrite(cgoRaw)
+}
+
+// PublishRaw publishes raw byte data (zero-copy)
+func (adapter *cgoAdapter) PublishRaw(topic string, isRetain bool, data []byte) error {
+	cgoRaw := marshalCgoPack(topic, data)
 	return adapter.onWrite(cgoRaw)
 }
