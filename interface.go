@@ -22,10 +22,10 @@ type SubscribeHandler func(topic string, packType EPType, f func(IPack))
 
 // EngineCallback 引擎回调
 type EngineCallback struct {
-	OnStop      func() (bool, error) //<-
-	OnLink      func()
-	OnSubscribe SubscribeHandler
-	OnPublish   PublishHandler
+	OnStop       func() (bool, error) //<-
+	OnLink       func()
+	OnSubscribe  SubscribeHandler
+	OnPublish    PublishHandler
 	OnPublishRaw PublishRawHandler
 }
 type AdapterCallBack struct {
@@ -66,20 +66,6 @@ type IAdapter interface {
 	iLogger
 }
 
-//	type IMonitor interface {
-//		IAdapter
-//		////RelayResp 转发响应
-//		//RelayResp(req PackReq, respCode EResp, content any)
-//		//// RelayNotice 转发通知
-//		//RelayNotice(notice PackNotice) error
-//		//// RelayRetainNotice 转发保留通知
-//		//RelayRetainNotice(notice PackNotice) error
-//		//// RelayLog 转发日志
-//		//RelayLog(log PackLog) error
-//
-//		// Discover 发现
-//		Discover(module string)
-//	}
 type IProxy interface {
 	// Stop 停止
 	Stop()
@@ -102,14 +88,11 @@ type MqttSetting struct {
 	Addr string
 	UID  string
 	PWD  string
-	//IsRandomClientID bool
 }
 
 // CoreSetting 设置
 type CoreSetting struct {
 	Module string
-	//// EProtocol 协议
-	//EProtocol EProtocol
 	// TimeOut 超时时间 毫秒
 	TimeOut time.Duration
 	// ReTry 请求重试次数
@@ -126,16 +109,6 @@ type CoreSetting struct {
 	// IsSync 是否同步
 	IsSync bool
 }
-
-//type MonitorCallBack struct {
-//	OnReqDetected  OnReqHandler
-//	OnRespDetected RespHandler
-//	//OnDiscover       func(module string)
-//	OnNotice         NoticeHandler
-//	OnRetainNotice   NoticeHandler
-//	OnInternalNotice NoticeHandler
-//	OnLog            LogHandler
-//}
 
 // MqttProxySetting 代理设置
 type MqttProxySetting struct {

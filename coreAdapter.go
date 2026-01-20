@@ -261,7 +261,7 @@ func (adapter *coreAdapter) reqInner(pack PackReq, timeout int) PackResp {
 
 // sendNoticeInner 发消息核心代码
 func (adapter *coreAdapter) sendNoticeInner(route string, isRetain bool, content any) error {
-	pack := newNoticePack(adapter.setting.Module, route, content)
+	pack := newNoticePack(adapter.setting.Module, route, content, isRetain)
 	topic := BuildNoticeTopic(adapter.setting.PreFix, route)
 	if isRetain {
 		topic = BuildRetainNoticeTopic(adapter.setting.PreFix, route)

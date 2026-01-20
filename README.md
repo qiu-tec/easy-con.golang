@@ -47,13 +47,42 @@ func onStatusChanged(status easyCon.EStatus) {
 	fmt.Println("StatusChanged", status)
 }
 
-func onReqRec(pack easyCon.PackReq) (easyCon.EResp, any) {
+func onReqRec(pack easyCon.PackReq) (easyCon.EResp, []byte) {
 	switch pack.Route {
 	case "hello":
-		return easyCon.ERespSuccess, "hello"
+		return easyCon.ERespSuccess, []byte("hello")
 	}
-	return easyCon.ERespRouteNotFind, "Route Not Matched"
+	return easyCon.ERespRouteNotFind, []byte("Route Not Matched")
 }
 ~~~
+
+## 发送消息
+
+```go
+// 发送请求 - Content 统一使用 []byte
+jsonData, _ := json.Marshal(userObj)
+resp := adapter.Req("TargetModule", "getUserInfo", jsonData)
+
+// 直接发送字符串
+resp := adapter.Req("Logger", "log", []byte("hello world"))
+
+// 直接发送二进制数据
+resp := adapter.Req("Storage", "upload", fileData)
+```
+
+## 处理请求
+
+```go
+func onReq(pack PackReq) (EResp, []byte) {
+    // pack.Content 是 []byte
+    var params UserParams
+    json.Unmarshal(pack.Content, &params)
+
+    result := process(params)
+
+    respData, _ := json.Marshal(result)
+    return ERespSuccess, respData
+}
+```
 
 just do it

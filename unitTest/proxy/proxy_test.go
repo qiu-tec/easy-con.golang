@@ -28,17 +28,15 @@ func forwardMode() {
 	proxy := easyCon.NewMqttProxy(
 		easyCon.MqttProxySetting{
 			Addr:    "ws://127.0.0.1:5002/ws",
-			ReTry:   3,
 			PreFix:  "",
 			TimeOut: time.Second * 3,
 		},
 		easyCon.MqttProxySetting{
 			Addr:    "ws://127.0.0.1:5002/ws",
-			ReTry:   3,
 			PreFix:  "B.",
 			TimeOut: time.Second * 3,
 		},
-		easyCon.EProxyModeForward, true, true, true,
+		true, true, true,
 		[]string{"ModuleA"})
 
 	setting := easyCon.NewDefaultMqttSetting("ModuleA", "ws://127.0.0.1:5002/ws")
@@ -106,17 +104,15 @@ func reverseMode() {
 	proxy := easyCon.NewMqttProxy(
 		easyCon.MqttProxySetting{
 			Addr:    "ws://127.0.0.1:5002/ws",
-			ReTry:   0,
 			PreFix:  "A.",
 			TimeOut: time.Second * 3,
 		},
 		easyCon.MqttProxySetting{
 			Addr:    "ws://127.0.0.1:5002/ws",
-			ReTry:   0,
 			PreFix:  "",
 			TimeOut: time.Second * 3,
 		},
-		easyCon.EProxyModeReverse, true, true, true,
+		true, true, true,
 		[]string{"ModuleB"})
 
 	setting := easyCon.NewDefaultMqttSetting("ModuleA", "ws://127.0.0.1:5002/ws")
@@ -185,10 +181,10 @@ func onLogA(log easyCon.PackLog) {
 func onLogB(log easyCon.PackLog) {
 	fmt.Println(time.Now().Format("15:04:05.000"), log, "B")
 }
-func onReqB(_ easyCon.PackReq) (easyCon.EResp, any) {
-	return easyCon.ERespSuccess, "I'm ModuleB"
+func onReqB(_ easyCon.PackReq) (easyCon.EResp, []byte) {
+	return easyCon.ERespSuccess, []byte("I'm ModuleB")
 }
 
-func onReqA(_ easyCon.PackReq) (easyCon.EResp, any) {
-	return easyCon.ERespSuccess, "I'm ModuleA"
+func onReqA(_ easyCon.PackReq) (easyCon.EResp, []byte) {
+	return easyCon.ERespSuccess, []byte("I'm ModuleA")
 }

@@ -7,7 +7,6 @@
 package easyCon
 
 import (
-	"encoding/binary"
 	"fmt"
 	"time"
 )
@@ -47,6 +46,25 @@ func NewCgoAdapter(setting CoreSetting, callback AdapterCallBack, onWrite func([
 	return adapter, adapter.onRead
 }
 
+func (adapter *cgoAdapter) generateTopic(pack IPack) string {
+	prefix := adapter.setting.PreFix
+	switch p := pack.(type) {
+	case *PackReq:
+		return BuildReqTopic(prefix, p.To)
+	case *PackResp:
+		return BuildRespTopic(prefix, p.From)
+	case *PackNotice:
+		// 根据 Retain 字段决定使用哪个 topic
+		if p.Retain {
+			return BuildRetainNoticeTopic(prefix, p.Route)
+		}
+		return BuildNoticeTopic(prefix, p.Route)
+	case *PackLog:
+		return BuildLogTopic(prefix)
+	}
+	return ""
+}
+
 type IClient struct {
 	OnSubscribe func(topic string, pType EPType, f func(IPack))
 	OnPublish   func(topic string, retain bool, pack IPack) error
@@ -63,80 +81,56 @@ func (adapter *cgoAdapter) readLoop() {
 		case <-adapter.stopChan:
 			return
 		case rawPack := <-adapter.readChan:
-			topic, raw, err := unMarshalCgoPack(rawPack)
+			// 直接解析新协议格式
+			pack, err := UnmarshalPack(rawPack)
 			if err != nil {
 				adapter.Err("Deserialize error", err)
 				continue
 			}
+
+			// 从Header生成topic
+			topic := adapter.generateTopic(pack)
+
+			// 匹配处理函数
 			adapter.mu.Lock()
 			t, b := adapter.topics[topic]
 			adapter.mu.Unlock()
+
 			if b {
-				adapter.callFunc(t, raw, topic)
+				t.Func(pack)
 			} else {
+				// 尝试monitor topic
 				tt := getMonitorTopic(topic)
 				adapter.mu.Lock()
-
 				t, b = adapter.topics[tt]
 				adapter.mu.Unlock()
 				if b {
-					adapter.callFunc(t, raw, topic)
+					t.Func(pack)
 				}
-
 			}
 		}
-
 	}
 }
 
-func (adapter *cgoAdapter) callFunc(t topicBack, raw []byte, topic string) {
-	pack, err := UnmarshalPack(raw)
-	if err != nil {
-		adapter.Err("Deserialize error", err)
-		return
-	}
-	t.Func(pack)
-}
-func marshalCgoPack(topic string, raw []byte) []byte {
-	topicBytes := []byte(topic)
-	length := uint32(len(topicBytes))
-	buf := make([]byte, 4+len(topicBytes)+len(raw))
-	binary.BigEndian.PutUint32(buf, length)
-	copy(buf[4:], topicBytes)
-	copy(buf[4+len(topicBytes):], raw)
-	return buf
-}
-func unMarshalCgoPack(pack []byte) (string, []byte, error) {
-	length := binary.BigEndian.Uint32(pack[:4])
-	if length == 0 {
-		return "", nil, fmt.Errorf("empty pack")
-	}
-	if len(pack) < 4+int(length) {
-		return "", nil, fmt.Errorf("pack too short")
-	}
-	return string(pack[4 : 4+length]), pack[4+length:], nil
-
-}
 func (adapter *cgoAdapter) onSubscribe(topic string, pType EPType, f func(IPack)) {
 	adapter.mu.Lock()
 	adapter.topics[topic] = topicBack{EType: pType, Func: f}
 	adapter.mu.Unlock()
+
 	pack := newReqPack(adapter.setting.Module, "Broker", "Subscribe", topic)
 	js, _ := pack.Raw()
-	cgoRaw := marshalCgoPack(BuildReqTopic(adapter.setting.PreFix, "Broker"), js)
-	err := adapter.onWrite(cgoRaw)
+	// To字段为"Broker"，接收方会生成"Request/Broker"topic
+	err := adapter.onWrite(js)
 	if err != nil {
 		fmt.Printf("[%s]:CGO Subscribe Failed because %s\r\n", time.Now().Format("15:04:05.000"), err.Error())
 	}
 }
 func (adapter *cgoAdapter) onPublish(topic string, _ bool, pack IPack) error {
 	js, _ := pack.Raw()
-	cgoRaw := marshalCgoPack(topic, js)
-	return adapter.onWrite(cgoRaw)
+	return adapter.onWrite(js)
 }
 
 // PublishRaw publishes raw byte data (zero-copy)
 func (adapter *cgoAdapter) PublishRaw(topic string, isRetain bool, data []byte) error {
-	cgoRaw := marshalCgoPack(topic, data)
-	return adapter.onWrite(cgoRaw)
+	return adapter.onWrite(data)
 }

@@ -31,13 +31,13 @@ func TestMqttClient(t *testing.T) {
 	cb := easyCon.AdapterCallBack{
 		OnReqRec: onReq,
 		OnLogRec: func(log easyCon.PackLog) {
-			fmt.Printf("[%s]:Log %d received %s \r\n", time.Now().Format("15:04:05.000"), log.Id, log.Content)
+			fmt.Printf("[%s]:Log %d received %s \r\n", time.Now().Format("15:04:05.000"), log.Id, string(log.Content))
 		},
 		OnNoticeRec: func(notice easyCon.PackNotice) {
-			fmt.Printf("[%s]:Notice %d received %s \r\n", time.Now().Format("15:04:05.000"), notice.Id, notice.Content)
+			fmt.Printf("[%s]:Notice %d received %s \r\n", time.Now().Format("15:04:05.000"), notice.Id, string(notice.Content))
 		},
 		OnRetainNoticeRec: func(notice easyCon.PackNotice) {
-			fmt.Printf("[%s]:RetainNotice %d received %s \r\n", time.Now().Format("15:04:05.000"), notice.Id, notice.Content)
+			fmt.Printf("[%s]:RetainNotice %d received %s \r\n", time.Now().Format("15:04:05.000"), notice.Id, string(notice.Content))
 		},
 		OnLinked:     nil,
 		OnExiting:    nil,
@@ -92,14 +92,14 @@ func TestMqttClient(t *testing.T) {
 	time.Sleep(time.Second * 5)
 }
 
-func onReq(pack easyCon.PackReq) (easyCon.EResp, any) {
-	fmt.Printf("[%s]:Req %d Received %s \r\n", time.Now().Format("15:04:05.000"), pack.Id, pack.Content)
+func onReq(pack easyCon.PackReq) (easyCon.EResp, []byte) {
+	fmt.Printf("[%s]:Req %d Received %s \r\n", time.Now().Format("15:04:05.000"), pack.Id, string(pack.Content))
 	n := rand.Intn(5) * 100
 
 	switch pack.Route {
 	case "PING":
 		time.Sleep(time.Millisecond * time.Duration(n))
-		return easyCon.ERespSuccess, "PONG"
+		return easyCon.ERespSuccess, []byte("PONG")
 	case "Test":
 		time.Sleep(time.Millisecond * time.Duration(n))
 		return easyCon.ERespSuccess, pack.Content

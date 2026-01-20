@@ -1,2 +1,7 @@
 /go.sum
 /.idea
+*.go~
+*.exe
+*.log
+*.prof
+/unitTest/cgotest/mem.prof

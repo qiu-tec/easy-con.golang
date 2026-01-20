@@ -93,18 +93,18 @@ func onRespDetected(pack easyCon.PackResp) {
 	fmt.Println(time.Now().Format("15:04:05.000"), "Monitor detected response=====", pack)
 }
 
-func onReqDetected(pack easyCon.PackReq) (easyCon.EResp, any) {
+func onReqDetected(pack easyCon.PackReq) (easyCon.EResp, []byte) {
 	fmt.Println(time.Now().Format("15:04:05.000"), "Monitor detected request=====", pack)
 	return easyCon.ERespBypass, nil
 }
-func onReq(pack easyCon.PackReq) (easyCon.EResp, any) {
+func onReq(pack easyCon.PackReq) (easyCon.EResp, []byte) {
 	switch pack.Route {
 	case "PING":
-		return easyCon.ERespSuccess, "PONG"
+		return easyCon.ERespSuccess, []byte("PONG")
 	case "PONG":
 		return easyCon.ERespBadReq, nil
 	case "ERR":
-		return easyCon.ERespError, errors.New("error")
+		return easyCon.ERespError, nil
 	default:
 		return easyCon.ERespRouteNotFind, nil
 	}

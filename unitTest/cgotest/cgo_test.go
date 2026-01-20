@@ -24,7 +24,27 @@ var (
 	noticeSuccessCount       int64 = 0
 	retainNoticeSuccessCount int64 = 0
 	logSuccessCount          int64 = 0
+	consistencyCheckCount    int64 = 0 // 一致性检测计数
 )
+
+// PackSnapshot 用于记录发送的pack快照
+type PackSnapshot struct {
+	PackType string // "REQ", "RESP", "NOTICE", "LOG", "RETAIN_NOTICE"
+	Id       uint64
+	From     string
+	To       string
+	Route    string
+	Content  []byte
+}
+
+// sentPackets 存储发送的pack快照 (key: packType+packId, value: PackSnapshot)
+// 使用复合键避免不同类型包的ID冲突
+var sentPackets sync.Map
+
+// makeSnapshotKey 创建快照键（类型+ID）
+func makeSnapshotKey(packType string, id uint64) string {
+	return packType + "_" + fmt.Sprintf("%d", id)
+}
 
 const (
 	LogContent          = "I am log"
@@ -37,9 +57,10 @@ const (
 )
 
 func Test(t *testing.T) {
-	//testInner(t)
-	//time.Sleep(time.Second * 1)
-	testProxy(t)
+	testInner(t)
+	// testProxy 需要 MQTT broker 连接，暂时跳过
+	// time.Sleep(time.Second * 1)
+	// testProxy(t)
 }
 
 // ✅ 全局错误日志文件
@@ -51,10 +72,13 @@ func logError(format string, args ...interface{}) {
 	defer errorLogMutex.Unlock()
 	if errorLogFile != nil {
 		timestamp := time.Now().Format("2006-01-02 15:04:05.000")
-		fmt.Fprintf(errorLogFile, "[%s] %s\n", timestamp, fmt.Sprintf(format, args...))
+		_, _ = fmt.Fprintf(errorLogFile, "[%s] %s\n", timestamp, fmt.Sprintf(format, args...))
 	}
 }
 func testProxy(t *testing.T) {
+	// ✅ 清空快照存储，避免与testInner的数据冲突
+	sentPackets = sync.Map{}
+
 	// ✅ 打开错误日志文件
 	var err error
 	errorLogFile, err = os.OpenFile("error.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
@@ -151,6 +175,8 @@ func testProxy(t *testing.T) {
 	atomic.StoreInt64(&noticeSuccessCount, 0)
 	atomic.StoreInt64(&retainNoticeSuccessCount, 0)
 	atomic.StoreInt64(&logSuccessCount, 0)
+	atomic.StoreInt64(&consistencyCheckCount, 0)
+	sentPackets = sync.Map{} // 清空快照存储
 
 	time.Sleep(SleepTime)
 
@@ -231,6 +257,31 @@ func testProxy(t *testing.T) {
 	if atomic.LoadInt64(&reqDetectedCount) != testCount*2 {
 		t.Fatal("请求检测未通过")
 	}
+	// 一致性检测报告（在断言前打印）
+	consistencyChecks := atomic.LoadInt64(&consistencyCheckCount)
+	fmt.Printf("========== testProxy 一致性检测报告 ==========\n")
+	fmt.Printf("一致性验证通过: %d 次\n", consistencyChecks)
+	fmt.Printf("预期验证次数: ~%d 次 (REQ+RESP+NOTICE+LOG+RETAIN_NOTICE)\n", testCount*5)
+	if consistencyChecks > 0 {
+		fmt.Printf("✓ 包一致性检测正常工作\n")
+	} else {
+		fmt.Printf("⚠ 警告: 没有一致性检测通过（可能需要检查快照记录逻辑）\n")
+	}
+	fmt.Printf("==========================================\n")
+	logError("========== testProxy 一致性检测: %d 次通过 ==========", consistencyChecks)
+
+	if atomic.LoadInt64(&reqSuccessCount) != testCount*2 {
+		t.Fatal("请求未通过", atomic.LoadInt64(&reqSuccessCount), testCount*2)
+	}
+	if atomic.LoadInt64(&noticeSuccessCount) != testCount*2 {
+		t.Fatal("通知测试未通过")
+	}
+	if atomic.LoadInt64(&retainNoticeSuccessCount) < testCount*2 {
+		t.Fatal("Retain通知测试未通过", atomic.LoadInt64(&retainNoticeSuccessCount), testCount*2)
+	}
+	if atomic.LoadInt64(&reqDetectedCount) != testCount*2 {
+		t.Fatal("请求检测未通过")
+	}
 	if atomic.LoadInt64(&respDetectedCount) != testCount*2 {
 		t.Fatal("响应检测未通过")
 	}
@@ -238,6 +289,11 @@ func testProxy(t *testing.T) {
 		t.Fatal("日志检测未通过")
 	}
 	_ = mc.CleanRetainNotice("RetainNotice")
+
+	// 停止适配器，清理 goroutine
+	moduleA.Stop()
+	mc.Stop()
+	fmt.Println("testProxy: 已停止所有适配器")
 }
 
 func onStatusChangedC(status easyCon.EStatus) {
@@ -295,6 +351,8 @@ func testInner(t *testing.T) {
 	atomic.StoreInt64(&noticeSuccessCount, 0)
 	atomic.StoreInt64(&retainNoticeSuccessCount, 0)
 	atomic.StoreInt64(&logSuccessCount, 0)
+	atomic.StoreInt64(&consistencyCheckCount, 0)
+	sentPackets = sync.Map{} // 清空快照存储
 
 	time.Sleep(SleepTime)
 	startTime := time.Now()
@@ -329,14 +387,33 @@ func testInner(t *testing.T) {
 
 	time.Sleep(time.Second)
 
+	// 一致性检测报告（在断言前打印）
+	consistencyChecks := atomic.LoadInt64(&consistencyCheckCount)
+	fmt.Printf("========== testInner 一致性检测报告 ==========\n")
+	fmt.Printf("一致性验证通过: %d 次\n", consistencyChecks)
+	fmt.Printf("预期验证次数: ~%d 次 (REQ+RESP+NOTICE+LOG+RETAIN_NOTICE)\n", testCount*4)
+	if consistencyChecks > 0 {
+		fmt.Printf("✓ 包一致性检测正常工作\n")
+	} else {
+		fmt.Printf("⚠ 警告: 没有一致性检测通过（可能需要检查快照记录逻辑）\n")
+	}
+	fmt.Printf("==========================================\n")
+
+	// 打印各计数器值
+	fmt.Printf("计数器状态: reqSuccess=%d, noticeSuccess=%d, retainNoticeSuccess=%d, logSuccess=%d\n",
+		atomic.LoadInt64(&reqSuccessCount),
+		atomic.LoadInt64(&noticeSuccessCount),
+		atomic.LoadInt64(&retainNoticeSuccessCount),
+		atomic.LoadInt64(&logSuccessCount))
+
 	if atomic.LoadInt64(&reqSuccessCount) != testCount {
 		t.Fatal("请求未通过", atomic.LoadInt64(&reqSuccessCount), testCount)
 	}
 	if atomic.LoadInt64(&noticeSuccessCount) != testCount {
-		t.Fatal("通知测试未通过")
+		t.Fatal("通知测试未通过", atomic.LoadInt64(&noticeSuccessCount), testCount)
 	}
 	if atomic.LoadInt64(&retainNoticeSuccessCount) != testCount {
-		t.Fatal("Retain通知测试未通过")
+		t.Fatal("Retain通知测试未通过", atomic.LoadInt64(&retainNoticeSuccessCount), testCount)
 	}
 	if atomic.LoadInt64(&reqDetectedCount) != testCount {
 		t.Fatal("请求检测未通过")
@@ -349,20 +426,32 @@ func testInner(t *testing.T) {
 	}
 }
 
-func onReqRecMonitor(pack easyCon.PackReq) (easyCon.EResp, any) {
+func onReqRecMonitor(pack easyCon.PackReq) (easyCon.EResp, []byte) {
 	currentCount := atomic.AddInt64(&reqDetectedCount, 1)
 	// 只在达到间隔或最后一次时打印
-	if currentCount%printInterval == 0 || currentCount == testCount {
-		fmt.Printf("[%s]:Detected========== REQ From %s To %s  %d %s [%d/%d]\r\n", time.Now().Format("15:04:05.000"), pack.From, pack.To, pack.Id, pack.Content, currentCount, testCount)
+	if (currentCount%printInterval == 0 || currentCount == testCount) && currentCount > 0 {
+		fmt.Printf("[%s]:Detected========== REQ From %s To %s  %d %s [%d/%d]\r\n", time.Now().Format("15:04:05.000"), pack.From, pack.To, pack.Id, string(pack.Content), currentCount, testCount)
 	}
+	// 记录发送的请求快照（使用复合键避免ID冲突）
+	snapshot := PackSnapshot{
+		PackType: "REQ",
+		Id:       pack.Id,
+		From:     pack.From,
+		To:       pack.To,
+		Route:    pack.Route,
+		Content:  pack.Content,
+	}
+	sentPackets.Store(makeSnapshotKey("REQ", pack.Id), snapshot)
 	return easyCon.ERespBypass, nil
 }
 
 func onRespRec(pack easyCon.PackResp) {
 	currentCount := atomic.AddInt64(&respDetectedCount, 1)
+	// 验证包一致性
+	verifyPackConsistency(pack.Id, "RESP", pack.From, pack.To, pack.Route, pack.Content)
 	// 只在达到间隔或最后一次时打印
-	if currentCount%printInterval == 0 || currentCount == testCount {
-		fmt.Printf("[%s]:Detected========== RESP From %s To %s  %d %s [%d/%d] \r\n", time.Now().Format("15:04:05.000"), pack.To, pack.From, pack.Id, pack.Content, currentCount, testCount)
+	if (currentCount%printInterval == 0 || currentCount == testCount) && currentCount > 0 {
+		fmt.Printf("[%s]:Detected========== RESP From %s To %s  %d %s [%d/%d] \r\n", time.Now().Format("15:04:05.000"), pack.To, pack.From, pack.Id, string(pack.Content), currentCount, testCount)
 	}
 }
 func onStatusChangedA(status easyCon.EStatus) {
@@ -372,31 +461,35 @@ func onStatusChangedA(status easyCon.EStatus) {
 
 func onRetainNotice(notice easyCon.PackNotice) {
 	currentCount := atomic.AddInt64(&retainNoticeSuccessCount, 1)
+	// 验证包一致性
+	verifyPackConsistency(notice.Id, "RETAIN_NOTICE", notice.From, "", notice.Route, notice.Content)
 	// 只在达到间隔或最后一次时打印
-	if currentCount%printInterval == 0 || currentCount == testCount {
-		fmt.Printf("[%s]:Detected========== RetainNotice %d  %s From %s [%d/%d]\r\n", time.Now().Format("15:04:05.000"), notice.Id, notice.Content, notice.From, currentCount, testCount)
+	if (currentCount%printInterval == 0 || currentCount == testCount) && currentCount > 0 {
+		fmt.Printf("[%s]:Detected========== RetainNotice %d  %s From %s [%d/%d]\r\n", time.Now().Format("15:04:05.000"), notice.Id, string(notice.Content), notice.From, currentCount, testCount)
 	}
 }
 
 func onNoticeRec(notice easyCon.PackNotice) {
-	if notice.Content == NoticeContent {
-		atomic.AddInt64(&noticeSuccessCount, 1)
-	}
-	currentCount := atomic.LoadInt64(&noticeSuccessCount)
-	// 只在达到间隔或最后一次时打印
-	if currentCount%printInterval == 0 || currentCount == testCount {
-		fmt.Printf("[%s]:Detected========== Notice %d  %s From %s [%d/%d]\r\n", time.Now().Format("15:04:05.000"), notice.Id, notice.Content, notice.From, currentCount, testCount)
+	if string(notice.Content) == NoticeContent {
+		currentCount := atomic.AddInt64(&noticeSuccessCount, 1)
+		// 验证包一致性
+		verifyPackConsistency(notice.Id, "NOTICE", notice.From, "", notice.Route, notice.Content)
+		// 只在达到间隔或最后一次时打印，且count > 0
+		if (currentCount%printInterval == 0 || currentCount == testCount) && currentCount > 0 {
+			fmt.Printf("[%s]:Detected========== Notice %d  %s From %s [%d/%d]\r\n", time.Now().Format("15:04:05.000"), notice.Id, string(notice.Content), notice.From, currentCount, testCount)
+		}
 	}
 }
 
 func onLogRec(log easyCon.PackLog) {
-	if log.Content == LogContent {
-		atomic.AddInt64(&logSuccessCount, 1)
-	}
-	currentCount := atomic.LoadInt64(&logSuccessCount)
-	// 只在达到间隔或最后一次时打印
-	if currentCount%printInterval == 0 || currentCount == testCount {
-		fmt.Printf("[%s]:Detected========== Log %d  %s From %s [%d/%d]\r\n", time.Now().Format("15:04:05.000"), log.Id, log.Content, log.From, currentCount, testCount)
+	if string(log.Content) == LogContent {
+		currentCount := atomic.AddInt64(&logSuccessCount, 1)
+		// 验证包一致性 (LOG包没有To和Route)
+		verifyPackConsistency(log.Id, "LOG", log.From, "", "", []byte(log.Content))
+		// 只在达到间隔或最后一次时打印
+		if (currentCount%printInterval == 0 || currentCount == testCount) && currentCount > 0 {
+			fmt.Printf("[%s]:Detected========== Log %d  %s From %s [%d/%d]\r\n", time.Now().Format("15:04:05.000"), log.Id, log.Content, log.From, currentCount, testCount)
+		}
 	}
 }
 func onStatusChangedB(status easyCon.EStatus) {
@@ -404,6 +497,88 @@ func onStatusChangedB(status easyCon.EStatus) {
 	fmt.Printf("[%s]: %s %s \r\n", time.Now().Format("15:04:05.000"), "module B status changed to ", statusStr)
 }
 
-func onReqRec(_ easyCon.PackReq) (easyCon.EResp, any) {
-	return easyCon.ERespSuccess, RespContent
+func onReqRec(_ easyCon.PackReq) (easyCon.EResp, []byte) {
+	return easyCon.ERespSuccess, []byte(RespContent)
+}
+
+// verifyPackConsistency 验证接收的pack与发送的快照是否一致
+func verifyPackConsistency(id uint64, packType string, from, to, route string, content []byte) bool {
+	// 使用复合键查找快照（查找对应的请求快照）
+	lookupType := packType
+	if packType == "RESP" {
+		// RESP 需要查找对应的 REQ 快照
+		lookupType = "REQ"
+	}
+
+	value, ok := sentPackets.Load(makeSnapshotKey(lookupType, id))
+
+	if !ok {
+		// 没有找到对应的发送快照
+		// 对于 Notice/Log/RetainNotice，由于我们无法在发送前知道ID，
+		// 这里只做基本的内容验证
+		expectedContent := ""
+		switch packType {
+		case "NOTICE":
+			expectedContent = NoticeContent
+		case "LOG":
+			expectedContent = LogContent
+		case "RETAIN_NOTICE":
+			expectedContent = RetainNoticeContent
+		default:
+			// 对于 REQ/RESP，没有快照说明有问题
+			return false
+		}
+
+		if string(content) == expectedContent {
+			atomic.AddInt64(&consistencyCheckCount, 1)
+			return true
+		}
+		logError("内容验证失败 ID=%d Type=%s: 期望=%s, 实际=%s", id, packType, expectedContent, string(content))
+		return false
+	}
+
+	snapshot := value.(PackSnapshot)
+
+	// 对于RESP，需要验证是否与对应的REQ匹配
+	// 对于其他类型，验证类型是否匹配
+	if packType != "RESP" && snapshot.PackType != packType {
+		logError("包类型不一致 ID=%d: 期望=%s, 实际=%s", id, snapshot.PackType, packType)
+		return false
+	}
+
+	// 验证From字段
+	hasError := false
+	if snapshot.From != from {
+		logError("From字段不一致 ID=%d: 期望=%s, 实际=%s", id, snapshot.From, from)
+		hasError = true
+	}
+
+	// 验证To字段（如果是RESP类型，需要反向比较）
+	expectedTo := snapshot.To
+	if packType == "RESP" {
+		// RESP的To应该是原请求的From
+		expectedTo = snapshot.From
+	}
+	if expectedTo != to {
+		logError("To字段不一致 ID=%d: 期望=%s, 实际=%s", id, expectedTo, to)
+		hasError = true
+	}
+
+	// 验证Route字段
+	if snapshot.Route != route {
+		logError("Route字段不一致 ID=%d: 期望=%s, 实际=%s", id, snapshot.Route, route)
+		hasError = true
+	}
+
+	// 验证Content
+	if string(snapshot.Content) != string(content) {
+		logError("Content不一致 ID=%d: 期望=%s, 实际=%s", id, string(snapshot.Content), string(content))
+		hasError = true
+	}
+
+	if !hasError {
+		atomic.AddInt64(&consistencyCheckCount, 1)
+	}
+
+	return !hasError
 }

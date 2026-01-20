@@ -15,7 +15,6 @@ import (
 var configData []byte
 
 type config struct {
-	Mode              easyCon.EProxyMode
 	ProxyNotice       bool
 	ProxyRetainNotice bool
 	ProxyLog          bool
@@ -25,11 +24,9 @@ type config struct {
 }
 
 var MyConfig = config{
-	Mode: easyCon.EProxyModeReverse,
 	SettingA: easyCon.MqttProxySetting{
 		Addr:    "ws://127.0.0.1:5002/ws",
 		TimeOut: 1000,
-		ReTry:   3,
 		UID:     "",
 		PWD:     "",
 		PreFix:  "A.",
@@ -37,7 +34,6 @@ var MyConfig = config{
 	SettingB: easyCon.MqttProxySetting{
 		Addr:    "ws://127.0.0.1:5002/ws",
 		TimeOut: 1000,
-		ReTry:   3,
 		UID:     "",
 		PWD:     "",
 		PreFix:  "B.",

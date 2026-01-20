@@ -6,9 +6,9 @@
 
 package easyCon
 
-func NewMqttProxy(settingA, settingB MqttProxySetting, mode EProxyMode, proxyNotice, ProxyRetainNotice, ProxyLog bool, ProxyModules []string) IProxy {
+func NewMqttProxy(settingA, settingB MqttProxySetting, proxyNotice, ProxyRetainNotice, ProxyLog bool, ProxyModules []string) IProxy {
 	p := &proxy{
-		mode:              mode,
+		//mode:              mode,
 		proxyModules:      ProxyModules,
 		proxyNotice:       proxyNotice,
 		proxyRetainNotice: ProxyRetainNotice,

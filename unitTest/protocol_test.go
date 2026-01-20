@@ -1,13 +1,12 @@
 /**
  * @Author: Joey
- * @Description: Protocol unit tests for new and old protocol serialization/deserialization
+ * @Description: Protocol unit tests for serialization/deserialization
  * @Create Date: 2024-01-19
  */
 
 package unitTest
 
 import (
-	"encoding/json"
 	"testing"
 
 	easyCon "github.com/qiu-tec/easy-con.golang"
@@ -98,103 +97,29 @@ func TestNewProtocolReqRoundTrip(t *testing.T) {
 	}
 }
 
-// TestOldProtocolCompatibility tests backward compatibility with old JSON protocol
-func TestOldProtocolCompatibility(t *testing.T) {
-	oldReq := easyCon.PackReq{
-		From:    "OldModule",
-		To:      "Target",
-		Route:   "oldRoute",
-		ReqTime: "2024-01-16 12:00:00.000",
-		Content: []byte("old content"),
-	}
-	oldReq.PType = easyCon.EPTypeReq
-	oldReq.Id = 11111
-
-	// 使用旧 JSON 格式序列化
-	oldJson, err := json.Marshal(oldReq)
-	if err != nil {
-		t.Fatalf("json.Marshal failed: %v", err)
-	}
-
-	// 确保以 '{' 开头
-	if oldJson[0] != '{' {
-		t.Errorf("Old JSON should start with '{', got 0x%02x", oldJson[0])
-	}
-
-	t.Logf("Old JSON: %s", string(oldJson))
-
-	// 新的 UnmarshalPack 应该能识别旧协议
-	decoded, err := easyCon.UnmarshalPack(oldJson)
-	if err != nil {
-		t.Fatalf("UnmarshalPack() failed for old protocol: %v", err)
-	}
-
-	decodedReq, ok := decoded.(*easyCon.PackReq)
-	if !ok {
-		t.Fatalf("Not a PackReq, got %T", decoded)
-	}
-
-	if decodedReq.GetId() != oldReq.GetId() {
-		t.Errorf("Id mismatch: got %d, want %d", decodedReq.GetId(), oldReq.GetId())
-	}
-
-	if decodedReq.From != oldReq.From {
-		t.Errorf("From mismatch: got %s, want %s", decodedReq.From, oldReq.From)
-	}
-
-	if decodedReq.To != oldReq.To {
-		t.Errorf("To mismatch: got %s, want %s", decodedReq.To, oldReq.To)
-	}
-}
-
-// TestProtocolAutoDetection tests automatic detection of new vs old protocol
+// TestProtocolAutoDetection tests protocol deserialization
 func TestProtocolAutoDetection(t *testing.T) {
-	// 新协议
-	newReq := easyCon.PackReq{
+	req := easyCon.PackReq{
 		From:    "A",
 		To:      "B",
 		Route:   "r",
 		ReqTime: "2024-01-16 13:00:00.000",
 		Content: []byte("data"),
 	}
-	newReq.PType = easyCon.EPTypeReq
-	newReq.Id = 1
+	req.PType = easyCon.EPTypeReq
+	req.Id = 1
 
-	newData, err := newReq.Raw()
+	data, err := req.Raw()
 	if err != nil {
-		t.Fatalf("Failed to serialize new protocol: %v", err)
+		t.Fatalf("Failed to serialize: %v", err)
 	}
 
-	pack, err := easyCon.UnmarshalPack(newData)
+	pack, err := easyCon.UnmarshalPack(data)
 	if err != nil {
-		t.Errorf("Failed to unmarshal new protocol: %v", err)
+		t.Errorf("Failed to unmarshal: %v", err)
 	}
 	if pack.GetType() != easyCon.EPTypeReq {
-		t.Errorf("Wrong type for new protocol: got %s, want %s", pack.GetType(), easyCon.EPTypeReq)
-	}
-
-	// 旧协议
-	oldReq := easyCon.PackReq{
-		From:    "C",
-		To:      "D",
-		Route:   "s",
-		ReqTime: "2024-01-16 14:00:00.000",
-		Content: []byte("old"),
-	}
-	oldReq.PType = easyCon.EPTypeReq
-	oldReq.Id = 2
-
-	oldData, err := json.Marshal(oldReq)
-	if err != nil {
-		t.Fatalf("Failed to serialize old protocol: %v", err)
-	}
-
-	pack, err = easyCon.UnmarshalPack(oldData)
-	if err != nil {
-		t.Errorf("Failed to unmarshal old protocol: %v", err)
-	}
-	if pack.GetType() != easyCon.EPTypeReq {
-		t.Errorf("Wrong type for old protocol: got %s, want %s", pack.GetType(), easyCon.EPTypeReq)
+		t.Errorf("Wrong type: got %s, want %s", pack.GetType(), easyCon.EPTypeReq)
 	}
 }
 

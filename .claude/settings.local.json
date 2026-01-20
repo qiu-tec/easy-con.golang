@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(go test:*)",
+      "Bash(go run:*)",
+      "Bash(git show:*)",
+      "Bash(cd:*)",
+      "Bash(git reset:*)",
+      "Bash(head:*)",
+      "Bash(timeout:*)",
+      "Bash(git restore:*)",
+      "Skill(superpowers:brainstorming)",
+      "Bash(find:*)",
+      "Bash(git checkout:*)",
+      "Bash(python3:*)",
+      "Bash(npx vue-tsc:*)"
+    ]
+  }
+}

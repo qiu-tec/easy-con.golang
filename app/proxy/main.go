@@ -41,6 +41,6 @@ func init() {
 
 func main() {
 	var block = make(chan struct{})
-	_ = easyCon.NewMqttProxy(MyConfig.SettingA, MyConfig.SettingB, MyConfig.Mode, MyConfig.ProxyNotice, MyConfig.ProxyRetainNotice, MyConfig.ProxyLog, MyConfig.ProxyModules)
+	_ = easyCon.NewMqttProxy(MyConfig.SettingA, MyConfig.SettingB, MyConfig.ProxyNotice, MyConfig.ProxyRetainNotice, MyConfig.ProxyLog, MyConfig.ProxyModules)
 	_ = <-block
 }
