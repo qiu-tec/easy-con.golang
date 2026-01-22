@@ -38,6 +38,10 @@ func NewMqttMonitor(setting MqttSetting, callback AdapterCallBack) IAdapter {
 	return newMqttAdapterInner(setting, callback)
 }
 func NewCGoMonitor(setting CoreSetting, callback AdapterCallBack, onWrite func([]byte) error) (IAdapter, func([]byte)) {
+	return NewCGoMonitorWithBroker(setting, callback, onWrite, nil)
+}
+
+func NewCGoMonitorWithBroker(setting CoreSetting, callback AdapterCallBack, onWrite func([]byte) error, localBroker func([]byte) error) (IAdapter, func([]byte)) {
 	setting.IsWaitLink = false
 	f := callback.OnLinked
 	callback.OnLinked = func(adapter IAdapter) {
@@ -71,5 +75,5 @@ func NewCGoMonitor(setting CoreSetting, callback AdapterCallBack, onWrite func([
 			f(adapter)
 		}
 	}
-	return NewCgoAdapter(setting, callback, onWrite)
+	return NewCgoAdapterWithBroker(setting, callback, onWrite, localBroker)
 }

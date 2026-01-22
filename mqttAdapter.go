@@ -40,6 +40,18 @@ func newMqttAdapterInner(setting MqttSetting, callback AdapterCallBack) *mqttAda
 		SetUsername(setting.UID).
 		SetPassword(setting.PWD).
 		SetAutoReconnect(true)
+
+	// 配置MQTT特定的超时设置，优化WebSocket连接性能
+	if setting.MqttKeepAlive > 0 {
+		o.SetKeepAlive(setting.MqttKeepAlive)
+	}
+	if setting.MqttPingTimeout > 0 {
+		o.SetPingTimeout(setting.MqttPingTimeout)
+	}
+	if setting.MqttWriteTimeout > 0 {
+		o.SetWriteTimeout(setting.MqttWriteTimeout)
+	}
+
 	o.OnConnect = func(client mqtt.Client) {
 		adapter.onConnected()
 		//if afterLink != nil {
@@ -81,9 +93,8 @@ func (adapter *mqttAdapter) onPublish(topic string, isRetain bool, pack IPack) e
 	}
 
 	token := adapter.client.Publish(topic, 0, isRetain, raw)
-	if token.Wait() && token.Error() != nil {
-		return token.Error()
-	}
+	// 异步发送：不等待确认，避免阻塞
+	_ = token
 	return nil
 }
 
@@ -94,9 +105,11 @@ func (adapter *mqttAdapter) PublishRaw(topic string, isRetain bool, data []byte)
 	}
 
 	token := adapter.client.Publish(topic, 0, isRetain, data)
-	if token.Wait() && token.Error() != nil {
-		return token.Error()
-	}
+	// 异步发送：不等待确认，避免阻塞
+	// if token.Wait() && token.Error() != nil {
+	// 	return token.Error()
+	// }
+	_ = token
 	return nil
 }
 

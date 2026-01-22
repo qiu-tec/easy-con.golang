@@ -5,3 +5,4 @@
 *.log
 *.prof
 /unitTest/cgotest/mem.prof
+/unitTest/expressTest/*.exe

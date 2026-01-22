@@ -99,6 +99,14 @@ func newRespPack(req PackReq, code EResp, content any) PackResp {
 	}
 	pack.PType = EPTypeResp
 
+	// 对于响应，需要交换 From 和 To
+	// req.From 是请求者，响应应该发送回请求者
+	// req.To 是被请求的模块，应该是响应的发送者
+	originalFrom := req.From
+	originalTo := req.To
+	pack.From = originalTo  // 响应的发送者是被请求的模块
+	pack.To = originalFrom  // 响应的目标是原始请求者
+
 	if code != ERespSuccess && content != nil {
 		if err, ok := content.(error); ok {
 			pack.Error = err.Error()

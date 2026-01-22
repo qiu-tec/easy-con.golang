@@ -224,13 +224,15 @@ func (adapter *coreAdapter) reqInner(pack PackReq, timeout int) PackResp {
 	to := pre + pack.To
 	topic := BuildReqTopic(pre, to)
 
-	// ✅ 先创建响应通道并注册，再发送请求，避免响应在注册前到达
+	// 先创建响应通道并注册，再发送请求，避免响应在注册前到达
 	respChan := make(chan PackResp)
 	adapter.mu.Lock()
 	adapter.respDict[pack.Id] = respChan
 	adapter.mu.Unlock()
 
 	// 注册完成后再发送请求
+	now := time.Now().Format("15:04:05.000")
+	fmt.Printf("[%s][Core-reqInner] SENDING: ID=%d To=%s Route=%s\n", now, pack.Id, pack.To, pack.Route)
 	e := adapter.engineCallback.OnPublish(topic, false, &pack)
 	if e != nil {
 		// 发送失败，清理已注册的通道
@@ -253,6 +255,8 @@ func (adapter *coreAdapter) reqInner(pack PackReq, timeout int) PackResp {
 		adapter.mu.Lock()
 		delete(adapter.respDict, pack.Id)
 		adapter.mu.Unlock()
+		now2 := time.Now().Format("15:04:05.000")
+		fmt.Printf("[%s][Core-reqInner] TIMEOUT: ID=%d To=%s waited full %v\n", now2, pack.Id, pack.To, tsp)
 		return PackResp{
 			RespCode: ERespTimeout,
 		}
@@ -271,11 +275,16 @@ func (adapter *coreAdapter) sendNoticeInner(route string, isRetain bool, content
 
 // onRespRec handle response from respChan
 func (adapter *coreAdapter) onRespRec(pack PackResp) {
-
+	now := time.Now().Format("15:04:05.000")
+	fmt.Printf("[%s][Core-onRespRec] ID=%d From=%s To=%s\n", now, pack.Id, pack.From, pack.To)
 	adapter.mu.RLock()
 	c, b := adapter.respDict[pack.Id]
 	if b {
+		fmt.Printf("[%s][Core-onRespRec] Found channel for ID=%d, sending...\n", now, pack.Id)
 		c <- pack
+		fmt.Printf("[%s][Core-onRespRec] Sent to channel ID=%d\n", now, pack.Id)
+	} else {
+		fmt.Printf("[%s][Core-onRespRec] NO CHANNEL for ID=%d (may have timed out)\n", now, pack.Id)
 	}
 	adapter.mu.RUnlock()
 	if adapter.adapterCallback.OnRespRec != nil {
@@ -301,7 +310,8 @@ func (adapter *coreAdapter) onReqRec(pack PackReq) {
 		return
 	}
 
-	topic := BuildRespTopic(adapter.setting.PreFix, respPack.Target())
+	// 对于响应，To 字段是目标（原始请求者），From 字段是响应者
+	topic := BuildRespTopic(adapter.setting.PreFix, respPack.To)
 	e := adapter.engineCallback.OnPublish(topic, false, &respPack)
 	if e != nil {
 		adapter.Err("RESP send error", e)

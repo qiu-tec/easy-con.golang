@@ -88,6 +88,10 @@ type MqttSetting struct {
 	Addr string
 	UID  string
 	PWD  string
+	// Mqtt特定配置
+	MqttKeepAlive    time.Duration // MQTT keepalive间隔，默认30秒
+	MqttPingTimeout  time.Duration // MQTT ping超时，默认10秒
+	MqttWriteTimeout time.Duration // MQTT写入超时，默认无限制
 }
 
 // CoreSetting 设置
@@ -119,7 +123,8 @@ type MqttProxySetting struct {
 	PWD    string
 	PreFix string
 	//ReTry   int
-	TimeOut time.Duration
+	TimeOut      time.Duration
+	LogForwardMode ELogForwardMode // 日志转发模式
 }
 
 // NewDefaultMqttSetting 快速新建设置 默认3秒延迟 3次重试
@@ -138,6 +143,9 @@ func NewDefaultMqttSetting(module string, addr string) MqttSetting {
 			IsWaitLink:        true,
 			//IsSync:            false,
 		},
-		Addr: addr,
+		Addr:             addr,
+		MqttKeepAlive:    20 * time.Second, // WebSocket连接使用更短的keepalive
+		MqttPingTimeout:  5 * time.Second,  // 默认10秒太长，缩短到5秒
+		MqttWriteTimeout: 5 * time.Second,  // 设置5秒写入超时，避免无限阻塞
 	}
 }

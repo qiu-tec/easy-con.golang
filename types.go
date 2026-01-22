@@ -122,6 +122,15 @@ const (
 	ELogLevelError   ELogLevel = "ERROR"
 )
 
+// ELogForwardMode 日志转发模式枚举
+type ELogForwardMode string
+
+const (
+	ELogForwardNone  ELogForwardMode = "NONE"  // 不转发日志
+	ELogForwardError ELogForwardMode = "ERROR" // 只转发ERROR级别日志
+	ELogForwardAll   ELogForwardMode = "ALL"   // 转发所有日志
+)
+
 // GetStatusName 获取状态名称
 func GetStatusName(status EStatus) string {
 	switch status {
