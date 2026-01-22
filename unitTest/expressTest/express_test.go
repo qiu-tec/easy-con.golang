@@ -36,10 +36,9 @@ func TestExpress(t *testing.T) {
 
 func doTest(a easyCon.IAdapter, b easyCon.IAdapter) {
 	for i := 0; i < 1000; i++ {
-		a.Req("ModuleB", "Ping", "Ping from ModuleA")
-		b.Req("ModuleA", "Ping", "Ping from ModuleB")
+		a.Req("ModuleB", "Ping", []byte("Ping from ModuleA"))
+		b.Req("ModuleA", "Ping", []byte("Ping from ModuleB"))
 	}
-
 }
 
 func onReq(pack easyCon.PackReq) (easyCon.EResp, []byte) {

@@ -84,13 +84,13 @@ func forwardMode() {
 
 	for i := 0; i < 5; i++ {
 		//time.Sleep(time.Second)
-		res := modA.Req("ModuleB", "Who are you", "")
+		res := modA.Req("ModuleB", "Who are you", []byte(""))
 		fmt.Println(res)
 		time.Sleep(time.Second)
 	}
 	for i := 0; i < 5; i++ {
 		//time.Sleep(time.Second)
-		res := modB.Req("ModuleA", "Who are you", "")
+		res := modB.Req("ModuleA", "Who are you", []byte(""))
 		fmt.Println(res)
 		time.Sleep(time.Second)
 	}
@@ -101,19 +101,18 @@ func forwardMode() {
 }
 
 func reverseMode() {
-	proxy := easyCon.NewMqttProxy(
-		easyCon.MqttProxySetting{
-			Addr:    "ws://127.0.0.1:5002/ws",
-			PreFix:  "A.",
-			TimeOut: time.Second * 3,
-		},
+	proxy, _ := easyCon.NewCgoMqttProxy(
 		easyCon.MqttProxySetting{
 			Addr:    "ws://127.0.0.1:5002/ws",
 			PreFix:  "",
 			TimeOut: time.Second * 3,
 		},
-		true, true, true,
-		[]string{"ModuleB"})
+		nil,
+		easyCon.AdapterCallBack{
+			OnReqRec:          onReqA,
+			OnNoticeRec:       onNoticeA,
+			OnRetainNoticeRec: onRetainNoticeA,
+		})
 
 	setting := easyCon.NewDefaultMqttSetting("ModuleA", "ws://127.0.0.1:5002/ws")
 	setting.PreFix = "A."
@@ -141,9 +140,9 @@ func reverseMode() {
 		//OnGetVersion:      nil,
 	}
 	modB := easyCon.NewMqttAdapter(setting, cbb)
-	_ = modA.SendNotice("Notice", "I am ModuleA Notice")
+	_ = modA.SendNotice("Notice", []byte("I am ModuleA Notice"))
 	time.Sleep(time.Second)
-	_ = modA.SendRetainNotice("RetainNotice", "I am ModuleA RetainNotice")
+	_ = modA.SendRetainNotice("RetainNotice", []byte("I am ModuleA RetainNotice"))
 	time.Sleep(time.Second)
 	_ = modA.CleanRetainNotice("RetainNotice")
 
@@ -151,7 +150,7 @@ func reverseMode() {
 	modA.Debug("I am ModuleA Debug")
 	time.Sleep(time.Second)
 	for i := 0; i < 10; i++ {
-		res := modB.Req("ModuleA", "Who are you", "")
+		res := modB.Req("ModuleA", "Who are you", []byte(""))
 		fmt.Println(res)
 		time.Sleep(time.Second)
 	}

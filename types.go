@@ -46,7 +46,6 @@ type PackRespHeader struct {
 	PackReqHeader
 	RespTime string
 	RespCode int
-	Error    string
 }
 
 // PackNoticeHeader 通知包头
@@ -64,7 +63,6 @@ type PackLogHeader struct {
 	Level   string
 	LogTime string
 	Error   string
-	Content string
 }
 
 // EPType 包类型枚举
@@ -85,7 +83,7 @@ type EStatus string
 
 const (
 	EStatusConnecting EStatus = "Connecting"
-	EStatusLinked      EStatus = "Linked"
+	EStatusLinked     EStatus = "Linked"
 	EStatusLinkLost   EStatus = "LinkLost"
 	EStatusStopped    EStatus = "Stopped"
 )

@@ -63,31 +63,23 @@ func TestMqttClient(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		content := fmt.Sprintf("I am ModuleA %d", i)
 		//go func() {
-		res := moduleA.Req("ModuleB", "PING", content)
+		res := moduleA.Req("ModuleB", "PING", []byte(content))
 		if res.RespCode != easyCon.ERespSuccess {
 			fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), res.Id, "request failed")
 		}
 		//}()
 		time.Sleep(time.Millisecond * 100)
 		//go func() {
-		err := moduleA.SendNotice("HereWeGo", content)
+		err := moduleA.SendNotice("HereWeGo", []byte(content))
 		if err != nil {
 			fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "notice send failed")
 		}
-		err = moduleA.SendRetainNotice("YaHaHa", content)
+		err = moduleA.SendRetainNotice("YaHaHa", []byte(content))
 		if err != nil {
 			fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "retain notice send failed")
 		}
 		//}()
 	}
-	_ = moduleA.SendNotice("TestNotice", Info{Msg: "I am ModuleA Notice", ID: rand.Int(), User: "Joey"})
-	_ = moduleA.SendNotice("TestNotice", []Info{
-		{Msg: "I am ModuleA RetainNotice", ID: rand.Int(), User: "Joey"},
-		{Msg: "I am ModuleA RetainNotice", ID: rand.Int(), User: "Joey"},
-		{Msg: "I am ModuleA RetainNotice", ID: rand.Int(), User: "Joey"}})
-	_ = moduleA.SendNotice("TestFloatNotice", 1.1)
-	_ = moduleA.SendNotice("TestBytesNotice", []byte{1, 2, 3, 4})
-	_ = moduleA.Req("ModuleB", "Test", Info{Msg: "I am ModuleA Notice", ID: rand.Int(), User: "Joey"})
 
 	time.Sleep(time.Second * 5)
 }

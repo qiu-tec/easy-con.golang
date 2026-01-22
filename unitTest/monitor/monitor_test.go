@@ -51,9 +51,9 @@ func TestMqttDetective(t *testing.T) {
 		moduleB.Stop()
 	}()
 	for i := 0; i < 5; i++ {
-		_ = moduleA.SendNotice("Notice", "I am ModuleA Notice")
+		_ = moduleA.SendNotice("Notice", []byte("I am ModuleA Notice"))
 		time.Sleep(time.Second)
-		_ = moduleA.SendRetainNotice("RetainNotice", "I am ModuleA RetainNotice")
+		_ = moduleA.SendRetainNotice("RetainNotice", []byte("I am ModuleA RetainNotice"))
 		time.Sleep(time.Second)
 		_ = moduleA.CleanRetainNotice("RetainNotice")
 		//moduleB.Debug("moduleB日志测试")
@@ -64,9 +64,9 @@ func TestMqttDetective(t *testing.T) {
 	time.Sleep(time.Second)
 	//moduleB.Debug("moduleB日志测试")
 	for i := 0; i < 5; i++ {
-		moduleA.Req("ModuleB", "Ping", "Ping from ModuleA")
+		moduleA.Req("ModuleB", "Ping", []byte("Ping from ModuleA"))
 		time.Sleep(time.Second)
-		moduleB.Req("ModuleA", "Ping", "Ping from ModuleB")
+		moduleB.Req("ModuleA", "Ping", []byte("Ping from ModuleB"))
 		time.Sleep(time.Second)
 	}
 	fmt.Println("Job finished")

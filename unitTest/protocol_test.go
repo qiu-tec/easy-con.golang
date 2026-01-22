@@ -139,7 +139,6 @@ func TestNewProtocolRespSerialization(t *testing.T) {
 		PackReq:  req,
 		RespTime: "2024-01-16 15:00:01.000",
 		RespCode: easyCon.ERespSuccess,
-		Error:    "",
 	}
 
 	data, err := resp.Raw()
@@ -175,7 +174,6 @@ func TestNewProtocolRespRoundTrip(t *testing.T) {
 		PackReq:  packReq,
 		RespTime: "2024-01-16 16:00:01.000",
 		RespCode: easyCon.ERespSuccess,
-		Error:    "",
 	}
 	original.PType = easyCon.EPTypeResp
 
@@ -281,7 +279,6 @@ func TestNewProtocolLogSerialization(t *testing.T) {
 		From:    "ModuleA",
 		Level:   easyCon.ELogLevelError,
 		LogTime: "2024-01-16 17:00:00.000",
-		Error:   "test error",
 		Content: "log content message",
 	}
 	log.PType = easyCon.EPTypeLog
@@ -307,7 +304,6 @@ func TestNewProtocolLogRoundTrip(t *testing.T) {
 		From:    "TestModule",
 		Level:   easyCon.ELogLevelWarning,
 		LogTime: "2024-01-16 18:00:00.000",
-		Error:   "",
 		Content: "warning message",
 	}
 	original.PType = easyCon.EPTypeLog

@@ -7,7 +7,6 @@
 package easyCon
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -162,16 +161,10 @@ func (broker *CgoBroker) onSend(topic string, raw []byte) {
 	}
 	fmt.Printf("[%s][CgoBroker-onSend] Delivered to %d subscribers\n", now, len(modulesToNotify))
 }
-func (broker *CgoBroker) onReq(pack PackReq) (EResp, any) {
+func (broker *CgoBroker) onReq(pack PackReq) (EResp, []byte) {
 	switch pack.Route {
 	case "Subscribe":
-		var topic string
-		err := json.Unmarshal(pack.Content, &topic)
-		if err != nil {
-			now := time.Now().Format("15:04:05.000")
-			fmt.Printf("[%s][CgoBroker-onReq] Subscribe FAILED: Unmarshal error from %s\n", now, pack.From)
-			return ERespBadReq, nil
-		}
+		topic := string(pack.Content)
 		now := time.Now().Format("15:04:05.000")
 		fmt.Printf("[%s][CgoBroker-onReq] Subscribe request: Module=%s Topic=%s\n", now, pack.From, topic)
 
@@ -199,7 +192,7 @@ func (broker *CgoBroker) onReq(pack PackReq) (EResp, any) {
 			m[module] = callback
 			fmt.Printf("[%s][CgoBroker-onReq] Subscribe: Registered %s for topic %s\n", now, module, topic)
 		} else {
-			m[module] = nil  // 占位符，表示已订阅但回调函数还未注册
+			m[module] = nil // 占位符，表示已订阅但回调函数还未注册
 			fmt.Printf("[%s][CgoBroker-onReq] Subscribe: Placeholder for %s on topic %s (waiting for registration)\n", now, module, topic)
 		}
 

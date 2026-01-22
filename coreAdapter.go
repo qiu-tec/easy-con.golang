@@ -7,6 +7,7 @@
 package easyCon
 
 import (
+	"encoding/json"
 	"fmt"
 	"runtime/debug"
 	"sync"
@@ -80,7 +81,7 @@ func (adapter *coreAdapter) Stop() {
 	if adapter.engineCallback.OnStop != nil {
 		b, err := adapter.engineCallback.OnStop()
 		if err != nil {
-			adapter.sendLog(newLogPack(adapter.setting.Module, ELogLevelError, "OnStop error", err))
+			adapter.sendLog(newLogPack(adapter.setting.Module, ELogLevelError, "OnStop error"))
 		}
 		if b {
 			if adapter.adapterCallback.OnStatusChanged != nil {
@@ -101,13 +102,13 @@ func (adapter *coreAdapter) Reset() {
 }
 
 // Req 请求并等待响应
-func (adapter *coreAdapter) Req(module, route string, params any) PackResp {
+func (adapter *coreAdapter) Req(module, route string, content []byte) PackResp {
 	if !adapter.isLinked {
 		return PackResp{
 			RespCode: ERespUnLinked,
 		}
 	}
-	pack := newReqPack(adapter.setting.Module, module, route, params)
+	pack := newReqPack(adapter.setting.Module, module, route, content)
 	for retry := adapter.setting.ReTry; retry > 0; retry-- {
 		resp := adapter.reqInner(pack, 0)
 		switch resp.RespCode {
@@ -121,20 +122,19 @@ func (adapter *coreAdapter) Req(module, route string, params any) PackResp {
 		PackReq:  pack,
 		RespTime: "",
 		RespCode: ERespTimeout,
-		Error:    "Req timeout",
 	}
 	p.Content = nil
 	return p
 }
 
 // ReqWithTimeout 带超时的请求
-func (adapter *coreAdapter) ReqWithTimeout(module, route string, params any, timeout int) PackResp {
+func (adapter *coreAdapter) ReqWithTimeout(module, route string, content []byte, timeout int) PackResp {
 	if !adapter.isLinked {
 		return PackResp{
 			RespCode: ERespUnLinked,
 		}
 	}
-	pack := newReqPack(adapter.setting.Module, module, route, params)
+	pack := newReqPack(adapter.setting.Module, module, route, content)
 	for retry := adapter.setting.ReTry; retry >= 0; retry-- {
 		resp := adapter.reqInner(pack, timeout)
 		switch resp.RespCode {
@@ -148,14 +148,13 @@ func (adapter *coreAdapter) ReqWithTimeout(module, route string, params any, tim
 		PackReq:  pack,
 		RespTime: "",
 		RespCode: ERespTimeout,
-		Error:    "Req timeout",
 	}
 	p.Content = nil
 	return p
 }
 
 // SendRetainNotice 发送Retain消息
-func (adapter *coreAdapter) SendRetainNotice(route string, content any) error {
+func (adapter *coreAdapter) SendRetainNotice(route string, content []byte) error {
 	return adapter.sendNoticeInner(route, true, content)
 }
 
@@ -165,7 +164,7 @@ func (adapter *coreAdapter) CleanRetainNotice(route string) error {
 }
 
 // SendNotice Send Notice
-func (adapter *coreAdapter) SendNotice(route string, content any) error {
+func (adapter *coreAdapter) SendNotice(route string, content []byte) error {
 	return adapter.sendNoticeInner(route, false, content)
 }
 func (adapter *coreAdapter) SubscribeNotice(route string, isRetain bool) {
@@ -190,17 +189,17 @@ func (adapter *coreAdapter) SubscribeNotice(route string, isRetain bool) {
 }
 
 func (adapter *coreAdapter) Debug(content string) {
-	pack := newLogPack(adapter.setting.Module, ELogLevelDebug, content, nil)
+	pack := newLogPack(adapter.setting.Module, ELogLevelDebug, content)
 	adapter.sendLog(pack)
 }
 
 func (adapter *coreAdapter) Warn(content string) {
-	pack := newLogPack(adapter.setting.Module, ELogLevelWarning, content, nil)
+	pack := newLogPack(adapter.setting.Module, ELogLevelWarning, content)
 	adapter.sendLog(pack)
 }
 
 func (adapter *coreAdapter) Err(content string, err error) {
-	pack := newLogPack(adapter.setting.Module, ELogLevelError, content, err)
+	pack := newLogPack(adapter.setting.Module, ELogLevelError, content+" "+err.Error())
 	adapter.sendLog(pack)
 }
 
@@ -239,10 +238,7 @@ func (adapter *coreAdapter) reqInner(pack PackReq, timeout int) PackResp {
 		adapter.mu.Lock()
 		delete(adapter.respDict, pack.Id)
 		adapter.mu.Unlock()
-		return PackResp{
-			RespCode: ERespError,
-			Error:    e.Error(),
-		}
+		return newRespPack(pack, ERespError, ([]byte)(e.Error()))
 	}
 
 	select {
@@ -264,7 +260,7 @@ func (adapter *coreAdapter) reqInner(pack PackReq, timeout int) PackResp {
 }
 
 // sendNoticeInner 发消息核心代码
-func (adapter *coreAdapter) sendNoticeInner(route string, isRetain bool, content any) error {
+func (adapter *coreAdapter) sendNoticeInner(route string, isRetain bool, content []byte) error {
 	pack := newNoticePack(adapter.setting.Module, route, content, isRetain)
 	topic := BuildNoticeTopic(adapter.setting.PreFix, route)
 	if isRetain {
@@ -299,12 +295,7 @@ func (adapter *coreAdapter) onReqRec(pack PackReq) {
 
 	// content 现在是 []byte 类型，直接使用
 	// 构造响应包时需要特殊处理，因为 newRespPack 期望 any 类型
-	if content == nil {
-		respPack = newRespPack(pack, resp, nil)
-	} else {
-		// 将 []byte 直接传入，newRespPack 会正确处理
-		respPack = newRespPack(pack, resp, content)
-	}
+	respPack = newRespPack(pack, resp, content)
 
 	if resp == ERespBypass { // 无需回复
 		return
@@ -326,7 +317,11 @@ func (adapter *coreAdapter) onReqInner(req PackReq) PackResp {
 		if adapter.adapterCallback.OnGetVersion != nil {
 			versions = append(versions, adapter.adapterCallback.OnGetVersion()...)
 		}
-		respPack := newRespPack(req, ERespSuccess, versions)
+		bytes, err := json.Marshal(versions)
+		if err != nil {
+			return newRespPack(req, ERespError, ([]byte)(err.Error()))
+		}
+		respPack := newRespPack(req, ERespSuccess, bytes)
 		return respPack
 	}
 	if req.Route == "Exit" {
@@ -474,7 +469,7 @@ func (adapter *coreAdapter) sendLog(pack PackLog) {
 	topic := adapter.setting.PreFix + LogTopic
 	err := adapter.engineCallback.OnPublish(topic, false, &pack)
 	if err != nil {
-		pack.Error = err.Error() + " " + err.Error()
+		pack.Content = pack.Content + " " + err.Error()
 		pack.Level = ELogLevelError
 		printLog(pack)
 		return
@@ -482,7 +477,7 @@ func (adapter *coreAdapter) sendLog(pack PackLog) {
 }
 
 func printLog(log PackLog) {
-	fmt.Printf("[%s][%s][%s]: %s %s \r\n", log.LogTime, log.Level, log.From, log.Content, log.Error)
+	fmt.Printf("[%s][%s][%s]: %s \r\n", log.LogTime, log.Level, log.From, log.Content)
 }
 
 func (adapter *coreAdapter) subscribe(kind string) {
@@ -532,7 +527,7 @@ func (adapter *coreAdapter) onConnected() {
 	if adapter.adapterCallback.OnStatusChanged != nil {
 		adapter.adapterCallback.OnStatusChanged(EStatusLinked)
 	}
-	err := adapter.SendNotice("Linked", "I am online")
+	err := adapter.SendNotice("Linked", ([]byte)("I am online"))
 	if err != nil {
 		fmt.Printf("Send Notice error %s \r\n", err)
 		return

@@ -25,10 +25,10 @@ type packBase struct {
 	Id    uint64
 }
 
-func (p *packBase) GetId() uint64 { return p.Id }
+func (p *packBase) GetId() uint64   { return p.Id }
 func (p *packBase) GetType() EPType { return p.PType }
-func (p *packBase) Target() string { return "" }
-func (p *packBase) IsRetain() bool { return false }
+func (p *packBase) Target() string  { return "" }
+func (p *packBase) IsRetain() bool  { return false }
 
 // PackReq 请求数据包
 type PackReq struct {
@@ -81,7 +81,6 @@ type PackResp struct {
 	PackReq
 	RespTime string
 	RespCode EResp
-	Error    string
 }
 
 func (p *PackResp) Target() string { return p.From }
@@ -100,7 +99,6 @@ func (p *PackResp) Raw() ([]byte, error) {
 		},
 		RespTime: p.RespTime,
 		RespCode: int(p.RespCode),
-		Error:    p.Error,
 	}
 	headerJson, err := json.Marshal(header)
 	if err != nil {
@@ -131,7 +129,6 @@ type PackLog struct {
 	From    string
 	Level   ELogLevel
 	LogTime string
-	Error   string
 	Content string
 }
 
@@ -144,15 +141,13 @@ func (p *PackLog) Raw() ([]byte, error) {
 		From:    p.From,
 		Level:   string(p.Level),
 		LogTime: p.LogTime,
-		Error:   p.Error,
-		Content: p.Content,
 	}
 	headerJson, err := json.Marshal(header)
 	if err != nil {
 		return nil, err
 	}
 
-	var contentBytes []byte
+	contentBytes := ([]byte)(p.Content)
 	headLen := len(headerJson)
 	totalLen := 3 + headLen + len(contentBytes)
 
@@ -162,7 +157,6 @@ func (p *PackLog) Raw() ([]byte, error) {
 	buf[2] = byte(headLen)
 	copy(buf[3:], headerJson)
 	copy(buf[3+headLen:], contentBytes)
-
 	return buf, nil
 }
 

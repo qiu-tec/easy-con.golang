@@ -18,10 +18,10 @@ type topicBack struct {
 }
 type cgoAdapter struct {
 	*coreAdapter
-	topics       map[string]topicBack
-	onWrite      func([]byte) error // External write (to MQTT broker)
-	localBroker  func([]byte) error // Local write (to CgoBroker)
-	readChan     chan []byte
+	topics      map[string]topicBack
+	onWrite     func([]byte) error // External write (to MQTT broker)
+	localBroker func([]byte) error // Local write (to CgoBroker)
+	readChan    chan []byte
 }
 
 func (adapter *cgoAdapter) onRead(raw []byte) {
@@ -144,7 +144,7 @@ func (adapter *cgoAdapter) onSubscribe(topic string, pType EPType, f func(IPack)
 
 	// 如果有 localBroker（CgoBroker），发送订阅请求到本地 Broker
 	if adapter.localBroker != nil {
-		pack := newReqPack(adapter.setting.Module, "Broker", "Subscribe", topic)
+		pack := newReqPack(adapter.setting.Module, "Broker", "Subscribe", []byte(topic))
 		js, _ := pack.Raw()
 		// To字段为"Broker"，接收方会生成"Request/Broker"topic
 		err := adapter.localBroker(js)
@@ -155,12 +155,12 @@ func (adapter *cgoAdapter) onSubscribe(topic string, pType EPType, f func(IPack)
 		}
 	}
 }
-func (adapter *cgoAdapter) onPublish(topic string, _ bool, pack IPack) error {
+func (adapter *cgoAdapter) onPublish(_ string, _ bool, pack IPack) error {
 	js, _ := pack.Raw()
 	return adapter.onWrite(js)
 }
 
 // PublishRaw publishes raw byte data (zero-copy)
-func (adapter *cgoAdapter) PublishRaw(topic string, isRetain bool, data []byte) error {
+func (adapter *cgoAdapter) PublishRaw(_ string, _ bool, data []byte) error {
 	return adapter.onWrite(data)
 }

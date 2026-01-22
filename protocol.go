@@ -35,31 +35,7 @@ func getNowStr() string {
 	return time.Now().Format("2006-01-02 15:04:05.000")
 }
 
-// marshalContent 将 content 序列化为 []byte
-func marshalContent(content any, serializeString bool) []byte {
-	if content != nil {
-		if bytes, ok := content.([]byte); ok {
-			return bytes
-		}
-		if str, ok := content.(string); ok {
-			if serializeString {
-				return []byte(str)
-			}
-		}
-		data, err := json.Marshal(content)
-		if err != nil {
-			return []byte{}
-		}
-		return data
-	}
-	return []byte{}
-}
-
-func newLogPack(module string, level ELogLevel, content string, err error) PackLog {
-	eStr := ""
-	if err != nil {
-		eStr = err.Error()
-	}
+func newLogPack(module string, level ELogLevel, content string) PackLog {
 	return PackLog{
 		packBase: packBase{
 			PType: EPTypeLog,
@@ -68,16 +44,14 @@ func newLogPack(module string, level ELogLevel, content string, err error) PackL
 		LogTime: time.Now().Format("2006-01-02 15:04:05.000"),
 		Level:   level,
 		Content: content,
-		Error:   eStr,
 		From:    module,
 	}
 }
-
-func newReqPack(from, to string, route string, content any) PackReq {
+func newReqPack(from, to string, route string, content []byte) PackReq {
 	return newReqPackInner(from, to, route, EPTypeReq, content)
 }
 
-func newReqPackInner(from, to string, route string, pType EPType, content any) PackReq {
+func newReqPackInner(from, to string, route string, pType EPType, content []byte) PackReq {
 	return PackReq{
 		packBase: packBase{
 			PType: pType,
@@ -87,11 +61,11 @@ func newReqPackInner(from, to string, route string, pType EPType, content any) P
 		ReqTime: getNowStr(),
 		To:      to,
 		Route:   route,
-		Content: marshalContent(content, false),
+		Content: content,
 	}
 }
 
-func newRespPack(req PackReq, code EResp, content any) PackResp {
+func newRespPack(req PackReq, code EResp, content []byte) PackResp {
 	pack := PackResp{
 		PackReq:  req,
 		RespTime: getNowStr(),
@@ -104,24 +78,13 @@ func newRespPack(req PackReq, code EResp, content any) PackResp {
 	// req.To 是被请求的模块，应该是响应的发送者
 	originalFrom := req.From
 	originalTo := req.To
-	pack.From = originalTo  // 响应的发送者是被请求的模块
-	pack.To = originalFrom  // 响应的目标是原始请求者
-
-	if code != ERespSuccess && content != nil {
-		if err, ok := content.(error); ok {
-			pack.Error = err.Error()
-			content = nil
-		} else if str, ok := content.(string); ok {
-			pack.Error = str
-			content = nil
-		}
-	}
-
-	pack.Content = marshalContent(content, false)
+	pack.From = originalTo // 响应的发送者是被请求的模块
+	pack.To = originalFrom // 响应的目标是原始请求者
+	pack.Content = content
 	return pack
 }
 
-func newNoticePack(module, route string, content any, isRetain bool) PackNotice {
+func newNoticePack(module, route string, content []byte, isRetain bool) PackNotice {
 	return PackNotice{
 		packBase: packBase{
 			PType: EPTypeNotice,
@@ -130,7 +93,7 @@ func newNoticePack(module, route string, content any, isRetain bool) PackNotice 
 		From:    module,
 		Route:   route,
 		Retain:  isRetain,
-		Content: marshalContent(content, true),
+		Content: content,
 	}
 }
 
@@ -208,7 +171,6 @@ func unmarshalPack(data []byte) (IPack, error) {
 			},
 			RespTime: header.RespTime,
 			RespCode: EResp(header.RespCode),
-			Error:    header.Error,
 		}, nil
 
 	case PackTypeNotice:
@@ -234,8 +196,7 @@ func unmarshalPack(data []byte) (IPack, error) {
 			From:     header.From,
 			Level:    ELogLevel(header.Level),
 			LogTime:  header.LogTime,
-			Error:    header.Error,
-			Content:  header.Content,
+			Content:  string(contentBytes),
 		}, nil
 
 	default:

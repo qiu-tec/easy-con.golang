@@ -46,15 +46,15 @@ type IAdapter interface {
 
 	Reset()
 
-	Req(module, route string, params any) PackResp
+	Req(module, route string, content []byte) PackResp
 
-	ReqWithTimeout(module, route string, params any, timeout int) PackResp
+	ReqWithTimeout(module, route string, content []byte, timeout int) PackResp
 
-	SendNotice(route string, content any) error
+	SendNotice(route string, content []byte) error
 
 	SubscribeNotice(route string, isRetain bool)
 
-	SendRetainNotice(route string, content any) error
+	SendRetainNotice(route string, content []byte) error
 
 	CleanRetainNotice(route string) error
 
@@ -123,7 +123,7 @@ type MqttProxySetting struct {
 	PWD    string
 	PreFix string
 	//ReTry   int
-	TimeOut      time.Duration
+	TimeOut        time.Duration
 	LogForwardMode ELogForwardMode // 日志转发模式
 }
 

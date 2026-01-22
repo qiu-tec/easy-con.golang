@@ -167,7 +167,7 @@ func testProxy(t *testing.T) {
 	// ✅ 发送测试请求验证连接
 	fmt.Println("验证连接状态...")
 	// 使用多层模块名 "B/ModuleC" 来触发proxy的外部转发（生成 Request/B/ModuleC）
-	testResp := moduleA.Req("B/ModuleC", "Ping", "Test")
+	testResp := moduleA.Req("B/ModuleC", "Ping", []byte("Test"))
 	if testResp.RespCode != easyCon.ERespSuccess {
 		fmt.Printf("⚠ 连接测试失败，继续等待... (Code: %d)\n", testResp.RespCode)
 		time.Sleep(time.Second * 3)
@@ -178,8 +178,8 @@ func testProxy(t *testing.T) {
 	// ✅ 发送几个预热请求
 	fmt.Println("发送预热请求...")
 	for i := int64(0); i < 10; i++ {
-		moduleA.Req("B/ModuleC", "WarmUp", "Test")
-		_ = moduleA.SendNotice("Notice", NoticeContent)
+		moduleA.Req("B/ModuleC", "WarmUp", []byte("Test"))
+		_ = moduleA.SendNotice("Notice", []byte(NoticeContent))
 	}
 	time.Sleep(time.Millisecond * 500) // 等待预热请求处理完成
 
@@ -198,10 +198,10 @@ func testProxy(t *testing.T) {
 	startTime := time.Now()
 	for i := int64(0); i < testCount; i++ {
 		// 正向请求：ModuleA (A端) -> B/ModuleC (B端)，生成多层topic Request/B/ModuleC
-		resp := moduleA.Req("B/ModuleC", ReqContent, ReqContent)
+		resp := moduleA.Req("B/ModuleC", ReqContent, []byte(ReqContent))
 		if resp.RespCode != easyCon.ERespSuccess {
 			fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), resp.Id, "请求失败")
-			logError("请求失败 ID=%d Code=%d Error=%s Route=%s", resp.Id, resp.RespCode, resp.Error, resp.Route)
+			logError("请求失败 ID=%d Code=%d Route=%s", resp.Id, resp.RespCode, resp.Route)
 		} else {
 			currentCount := atomic.AddInt64(&reqSuccessCount, 1)
 			// 只在达到间隔时打印
@@ -213,13 +213,13 @@ func testProxy(t *testing.T) {
 			}
 		}
 
-		err := moduleA.SendNotice("Notice", NoticeContent)
+		err := moduleA.SendNotice("Notice", []byte(NoticeContent))
 		if err != nil {
 			fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "通知发送失败")
 			logError("正向通知发送失败 err=%v", err)
 		}
 
-		err = moduleA.SendRetainNotice("RetainNotice", RetainNoticeContent)
+		err = moduleA.SendRetainNotice("RetainNotice", []byte(RetainNoticeContent))
 		if err != nil {
 			fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "Retain通知发送失败")
 			logError("正向Retain通知发送失败 err=%v", err)
@@ -228,10 +228,10 @@ func testProxy(t *testing.T) {
 		moduleA.Err(LogContent, fmt.Errorf("I am Error"))
 
 		//反向请求：ModuleC (B端) -> A/ModuleA (A端)，生成多层topic Request/A/ModuleA
-		resp = mc.Req("A/ModuleA", ReqContent, ReqContent)
+		resp = mc.Req("A/ModuleA", ReqContent, []byte(ReqContent))
 		if resp.RespCode != easyCon.ERespSuccess {
 			fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), resp.Id, "反向请求失败")
-			logError("反向请求失败 ID=%d Code=%d Error=%s Route=%s", resp.Id, resp.RespCode, resp.Error, resp.Route)
+			logError("反向请求失败 ID=%d Code=%d Route=%s", resp.Id, resp.RespCode, resp.Route)
 		} else {
 			currentCount := atomic.AddInt64(&reqSuccessCount, 1)
 			// 只在达到间隔时打印
@@ -243,13 +243,13 @@ func testProxy(t *testing.T) {
 			}
 		}
 
-		err = mc.SendNotice("Notice", NoticeContent)
+		err = mc.SendNotice("Notice", []byte(NoticeContent))
 		if err != nil {
 			fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "反向通知发送失败")
 			logError("反向通知发送失败 err=%v", err)
 		}
 
-		err = mc.SendRetainNotice("RetainNotice", RetainNoticeContent)
+		err = mc.SendRetainNotice("RetainNotice", []byte(RetainNoticeContent))
 		if err != nil {
 			fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "反向Retain通知发送失败")
 			logError("反向Retain通知发送失败 err=%v", err)
@@ -378,7 +378,7 @@ func testInner(t *testing.T) {
 	time.Sleep(SleepTime)
 	startTime := time.Now()
 	for i := int64(0); i < testCount; i++ {
-		resp := moduleA.Req("ModuleB", ReqContent, ReqContent)
+		resp := moduleA.Req("ModuleB", ReqContent, []byte(ReqContent))
 		if resp.RespCode != easyCon.ERespSuccess {
 			fmt.Printf("[%s]: %d %s \r\n", time.Now().Format("15:04:05.000"), resp.Id, "请求失败")
 		} else {
@@ -392,12 +392,12 @@ func testInner(t *testing.T) {
 			}
 		}
 
-		err := moduleA.SendNotice("Notice", NoticeContent)
+		err := moduleA.SendNotice("Notice", []byte(NoticeContent))
 		if err != nil {
 			fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "通知发送失败")
 		}
 
-		err = moduleA.SendRetainNotice("RetainNotice", RetainNoticeContent)
+		err = moduleA.SendRetainNotice("RetainNotice", []byte(RetainNoticeContent))
 		if err != nil {
 			fmt.Printf("[%s]: %s \r\n", time.Now().Format("15:04:05.000"), "Retain通知发送失败")
 		}
