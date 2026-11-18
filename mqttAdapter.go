@@ -226,8 +226,15 @@ func (adapter *mqttAdapter) sendNoticeInner(route string, isRetain bool, content
 		js = nil
 	}
 	token := adapter.client.Publish(topic, 0, isRetain, js)
-	if token.Wait() && token.Error() != nil {
-		adapter.Err("Notice send error", token.Error())
+
+	now := time.Now()
+	if !token.WaitTimeout(adapter.setting.TimeOut) {
+		err = fmt.Errorf("notice timeout cfg timeout=%d, use timeout=%d", adapter.setting.TimeOut, time.Now().Sub(now))
+		adapter.Err(fmt.Sprintf("Notice %d send timeout\r\n", pack.Id), err)
+		return err
+	}
+	if token.Error() != nil {
+		adapter.Err(fmt.Sprintf("Notice %d send error\r\n", pack.Id), token.Error())
 		return token.Error()
 	}
 	return nil
@@ -259,7 +266,15 @@ func (adapter *mqttAdapter) reqInner(pack PackReq) PackResp {
 	}
 	pre := adapter.setting.PreFix
 	token := adapter.client.Publish(buildReqTopic(pre+pack.To), 0, false, raw)
-	if token.Wait() && token.Error() != nil {
+	now := time.Now()
+	if !token.WaitTimeout(adapter.setting.TimeOut) {
+		adapter.Err(fmt.Sprintf("REQ %d send timeout\r\n", pack.Id),
+			fmt.Errorf("cfg timeout=%d, use timeout=%d", adapter.setting.TimeOut, time.Now().Sub(now)))
+		return PackResp{
+			RespCode: ERespTimeout,
+		}
+	}
+	if token.Error() != nil {
 		adapter.Err(fmt.Sprintf("REQ %d send error\r\n", pack.Id), token.Error())
 		return PackResp{
 			RespCode: ERespUnLinked,
@@ -327,8 +342,14 @@ func (adapter *mqttAdapter) onReq(message mqtt.Message) {
 			return
 		}
 		token := adapter.client.Publish(buildRespTopic(adapter.setting.PreFix+pack.From), 0, false, js)
-		if token.Wait() && token.Error() != nil {
-			adapter.Err("RESP send error", token.Error())
+		now := time.Now()
+		if !token.WaitTimeout(adapter.setting.TimeOut) {
+			adapter.Err(fmt.Sprintf("RESP %d send timeout\r\n", pack.Id),
+				fmt.Errorf("cfg timeout=%d, use timeout=%d", adapter.setting.TimeOut, time.Now().Sub(now)))
+			return
+		}
+		if token.Error() != nil {
+			adapter.Err(fmt.Sprintf("RESP %d send error\r\n", pack.Id), token.Error())
 			return
 		}
 	}()
@@ -507,6 +528,44 @@ ReLink:
 	}
 }
 
+// NewMqttAdapterWithClient 使用外部提供的 mqtt.Client 构造适配器（供单元测试注入模拟客户端）
+// 与 NewMqttAdapter 的区别：不建立真实连接、不发送 Linked 通知，
+// 但会完成主题订阅并启动消息循环，使收发回路可被测试驱动。
+// 注意：调用方需自行保证 client 的生命周期
+func NewMqttAdapterWithClient(setting Setting, client mqtt.Client) IAdapter {
+	adapter := &mqttAdapter{
+		client:           client,
+		setting:          setting,
+		respDict:         make(map[uint64]chan PackResp),
+		mu:               sync.RWMutex{},
+		reqChan:          make(chan mqtt.Message, 100),
+		respChan:         make(chan mqtt.Message, 100),
+		noticeChan:       make(chan mqtt.Message, 100),
+		retainNoticeChan: make(chan mqtt.Message, 100),
+		logChan:          make(chan mqtt.Message, 100),
+		stopChan:         make(chan struct{}),
+		wg:               &sync.WaitGroup{},
+	}
+	adapter.isLinked = true
+	go adapter.loop()
+
+	// 订阅逻辑与 OnConnect 回调保持一致
+	if adapter.setting.OnReq != nil {
+		adapter.subscribe("Req")
+	}
+	adapter.subscribe("Resp")
+	if adapter.setting.OnNotice != nil {
+		adapter.subscribe("Notice")
+	}
+	if adapter.setting.OnRetainNotice != nil {
+		adapter.subscribe("RetainNotice")
+	}
+	if adapter.setting.OnLog != nil {
+		adapter.subscribe("Log")
+	}
+	return adapter
+}
+
 func (adapter *mqttAdapter) sendLog(pack PackLog) {
 	if adapter.setting.LogMode == ELogModeConsole || adapter.setting.LogMode == ELogModeAll {
 		printLog(pack)
@@ -522,7 +581,14 @@ func (adapter *mqttAdapter) sendLog(pack PackLog) {
 			return
 		}
 		token := adapter.client.Publish(adapter.setting.PreFix+LogTopic, 0, false, js)
-		if token.Wait() && token.Error() != nil {
+		if !token.WaitTimeout(adapter.setting.TimeOut) {
+			// 注意：WaitTimeout 超时时 paho 不会给 token 设置 error，Error() 可能为 nil，
+			// 不能直接调用 token.Error().Error()，否则会空指针 panic
+			fmt.Printf("[%s][%s][Timeout]: log publish timeout cfg timeout=%d\r\n",
+				time.Now().Format("2006-01-02 15:04:05.000"), adapter.setting.Module, adapter.setting.TimeOut)
+			return
+		}
+		if token.Error() != nil {
 			fmt.Printf("[%s][%s][Error]: %s\r\n", time.Now().Format("2006-01-02 15:04:05.000"), adapter.setting.Module, token.Error().Error())
 			return
 		}
