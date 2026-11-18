@@ -56,7 +56,7 @@ func onReqRec(pack easyCon.PackReq) (easyCon.EResp, []byte) {
 }
 ~~~
 
-## 发送消息
+## Send Request
 
 ```go
 // 发送请求 - Content 统一使用 []byte
@@ -70,7 +70,7 @@ resp := adapter.Req("Logger", "log", []byte("hello world"))
 resp := adapter.Req("Storage", "upload", fileData)
 ```
 
-## 处理请求
+## Process Request
 
 ```go
 func onReq(pack PackReq) (EResp, []byte) {
