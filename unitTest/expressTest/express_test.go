@@ -15,14 +15,10 @@ import (
 )
 
 func TestExpress(t *testing.T) {
-	setting := easyCon.NewDefaultMqttSetting("ModuleA", "ws://127.0.0.1:5002/ws")
-	cb := easyCon.AdapterCallBack{
-		OnReqRec:        onReq,
-		OnStatusChanged: onStatusChanged,
-	}
-	moduleA := easyCon.NewMqttAdapter(setting, cb)
+	setting := easyCon.NewSetting("ModuleA", "ws://127.0.0.1:5002/ws", onReq, onStatusChanged)
+	moduleA := easyCon.NewMqttAdapter(setting)
 	setting.Module = "ModuleB"
-	moduleB := easyCon.NewMqttAdapter(setting, cb)
+	moduleB := easyCon.NewMqttAdapter(setting)
 	wg := &sync.WaitGroup{}
 	for i := 0; i < 100; i++ {
 		go func() {
@@ -36,16 +32,17 @@ func TestExpress(t *testing.T) {
 
 func doTest(a easyCon.IAdapter, b easyCon.IAdapter) {
 	for i := 0; i < 1000; i++ {
-		a.Req("ModuleB", "Ping", []byte("Ping from ModuleA"))
-		b.Req("ModuleA", "Ping", []byte("Ping from ModuleB"))
+		a.Req("ModuleB", "Ping", "Ping from ModuleA")
+		b.Req("ModuleA", "Ping", "Ping from ModuleB")
 	}
+
 }
 
-func onReq(pack easyCon.PackReq) (easyCon.EResp, []byte) {
+func onReq(pack easyCon.PackReq) (easyCon.EResp, any) {
 	rd := rand.Intn(100)
 
 	time.Sleep(time.Duration(rd) * time.Millisecond)
-	return easyCon.ERespSuccess, []byte("Pong")
+	return easyCon.ERespSuccess, "Pong"
 }
 
 func onStatusChanged(status easyCon.EStatus) {

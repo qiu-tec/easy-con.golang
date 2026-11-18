@@ -15,27 +15,35 @@ import (
 var configData []byte
 
 type config struct {
-	ProxyNotice       bool
-	ProxyRetainNotice bool
-	ProxyLog          bool
-	SettingA          easyCon.MqttProxySetting
-	SettingB          easyCon.MqttProxySetting
-	ProxyModules      []string
+	Mode     easyCon.EProxyMode
+	SettingA easyCon.ProxySetting
+	SettingB easyCon.ProxySetting
 }
 
 var MyConfig = config{
-	SettingA: easyCon.MqttProxySetting{
-		Addr:    "ws://127.0.0.1:5002/ws",
-		TimeOut: 1000,
-		UID:     "",
-		PWD:     "",
-		PreFix:  "A.",
+	Mode: easyCon.EProxyModeReverse,
+	SettingA: easyCon.ProxySetting{
+		Addr:              "ws://127.0.0.1:5002/ws",
+		TimeOut:           1000,
+		ReTry:             3,
+		UID:               "",
+		PWD:               "",
+		PreFix:            "A.",
+		ProxyModules:      nil,
+		ProxyNotice:       false,
+		ProxyRetainNotice: false,
+		ProxyLog:          false,
 	},
-	SettingB: easyCon.MqttProxySetting{
-		Addr:    "ws://127.0.0.1:5002/ws",
-		TimeOut: 1000,
-		UID:     "",
-		PWD:     "",
-		PreFix:  "B.",
+	SettingB: easyCon.ProxySetting{
+		Addr:              "ws://127.0.0.1:5002/ws",
+		TimeOut:           1000,
+		ReTry:             3,
+		UID:               "",
+		PWD:               "",
+		PreFix:            "B.",
+		ProxyModules:      nil,
+		ProxyNotice:       false,
+		ProxyRetainNotice: false,
+		ProxyLog:          false,
 	},
 }

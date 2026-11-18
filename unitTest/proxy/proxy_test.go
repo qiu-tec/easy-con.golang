@@ -18,79 +18,60 @@ func TestMqttProxy(t *testing.T) {
 	fmt.Println("正向代理测试开始")
 	//正向代理模式
 	forwardMode()
-	//time.Sleep(time.Second * 5)
-	//fmt.Println("反向代理测试开始")
-	////反向代理模式
-	//reverseMode()
+	time.Sleep(time.Second * 5)
+	fmt.Println("反向代理测试开始")
+	//反向代理模式
+	reverseMode()
 }
 
 func forwardMode() {
 	proxy := easyCon.NewMqttProxy(
-		easyCon.MqttProxySetting{
+		easyCon.ProxySetting{
 			Addr:    "ws://127.0.0.1:5002/ws",
+			ReTry:   3,
 			PreFix:  "",
 			TimeOut: time.Second * 3,
 		},
-		easyCon.MqttProxySetting{
+		easyCon.ProxySetting{
 			Addr:    "ws://127.0.0.1:5002/ws",
+			ReTry:   3,
 			PreFix:  "B.",
 			TimeOut: time.Second * 3,
-		},
-		true, true, true,
-		[]string{"ModuleA"})
+		}, easyCon.EProxyModeForward)
 
-	setting := easyCon.NewDefaultMqttSetting("ModuleA", "ws://127.0.0.1:5002/ws")
+	setting := easyCon.NewSetting("ModuleA",
+		"ws://127.0.0.1:5002/ws",
+		onReqA,
+		nil)
+	setting.PreFix = ""
+	setting.OnLog = onLogA
+	setting.OnNotice = onNoticeA
+	setting.OnRetainNotice = onRetainNoticeA
 	setting.LogMode = easyCon.ELogModeUpload
-	cba := easyCon.AdapterCallBack{
-		OnReqRec:          onReqA,
-		OnLogRec:          onLogA,
-		OnNoticeRec:       onNoticeA,
-		OnRetainNoticeRec: onRetainNoticeA,
-		//OnLinked:          nil,
-		//OnExiting:         nil,
-		//OnGetVersion:      nil,
-	}
-	modA := easyCon.NewMqttAdapter(setting, cba)
+	modA := easyCon.NewMqttAdapter(setting)
 
 	setting.PreFix = "B."
 	setting.Module = "ModuleB"
-	cbb := easyCon.AdapterCallBack{
-		OnReqRec:          onReqB,
-		OnLogRec:          onLogB,
-		OnNoticeRec:       onNoticeB,
-		OnRetainNoticeRec: onRetainNoticeB,
-		//OnLinked:          nil,
-		//OnExiting:         nil,
-		//OnGetVersion:      nil,
+	setting.OnLog = onLogB
+	setting.OnReq = onReqB
+	setting.OnNotice = onNoticeB
+	setting.OnRetainNotice = onRetainNoticeB
+	modB := easyCon.NewMqttAdapter(setting)
+	time.Sleep(time.Second)
+	err := modB.SendNotice("Notice", "I am ModuleB Notice")
+	if err != nil {
+		fmt.Println(err)
 	}
-	modB := easyCon.NewMqttAdapter(setting, cbb)
-
-	//for i := 0; i < 2; i++ {
-	//	err := modB.SendNotice("Notice", "I am ModuleB Notice")
-	//	if err != nil {
-	//		fmt.Println(err)
-	//	}
-	//
-	//	time.Sleep(time.Second)
-	//}
-	//
-	//time.Sleep(time.Second)
-	//_ = modB.SendRetainNotice("RetainNotice", "I am ModuleB RetainNotice")
-	//time.Sleep(time.Second)
-	//_ = modB.CleanRetainNotice()
-	//time.Sleep(time.Second)
-	//modB.Debug("I am ModuleB Debug")
-	//time.Sleep(time.Second)
-
+	time.Sleep(time.Second)
+	_ = modB.SendRetainNotice("RetainNotice", "I am ModuleB RetainNotice")
+	time.Sleep(time.Second)
+	_ = modB.CleanRetainNotice()
+	time.Sleep(time.Second)
+	modB.Debug("I am ModuleB Debug")
+	time.Sleep(time.Second)
 	for i := 0; i < 5; i++ {
 		//time.Sleep(time.Second)
-		res := modA.Req("ModuleB", "Who are you", []byte(""))
-		fmt.Println(res)
-		time.Sleep(time.Second)
-	}
-	for i := 0; i < 5; i++ {
-		//time.Sleep(time.Second)
-		res := modB.Req("ModuleA", "Who are you", []byte(""))
+		res := modA.Req("ModuleB", "Who are you", "")
 		fmt.Println(res)
 		time.Sleep(time.Second)
 	}
@@ -101,56 +82,49 @@ func forwardMode() {
 }
 
 func reverseMode() {
-	proxy, _ := easyCon.NewCgoMqttProxy(
-		easyCon.MqttProxySetting{
+	proxy := easyCon.NewMqttProxy(
+		easyCon.ProxySetting{
 			Addr:    "ws://127.0.0.1:5002/ws",
-			PreFix:  "",
+			ReTry:   0,
+			PreFix:  "A.",
 			TimeOut: time.Second * 3,
 		},
-		nil,
-		easyCon.AdapterCallBack{
-			OnReqRec:          onReqA,
-			OnNoticeRec:       onNoticeA,
-			OnRetainNoticeRec: onRetainNoticeA,
-		})
+		easyCon.ProxySetting{
+			Addr:    "ws://127.0.0.1:5002/ws",
+			ReTry:   0,
+			PreFix:  "",
+			TimeOut: time.Second * 3,
+		}, easyCon.EProxyModeReverse)
 
-	setting := easyCon.NewDefaultMqttSetting("ModuleA", "ws://127.0.0.1:5002/ws")
+	setting := easyCon.NewSetting("ModuleA",
+		"ws://127.0.0.1:5002/ws",
+		onReqA, nil)
 	setting.PreFix = "A."
+	setting.OnLog = onLogA
+	setting.OnNotice = onNoticeA
+	setting.OnRetainNotice = onRetainNoticeA
 	setting.LogMode = easyCon.ELogModeUpload
-	cba := easyCon.AdapterCallBack{
-		OnReqRec:          onReqA,
-		OnLogRec:          onLogA,
-		OnNoticeRec:       onNoticeA,
-		OnRetainNoticeRec: onRetainNoticeA,
-		//OnLinked:          nil,
-		//OnExiting:         nil,
-		//OnGetVersion:      nil,
-	}
-	modA := easyCon.NewMqttAdapter(setting, cba)
+	modA := easyCon.NewMqttAdapter(setting)
 	time.Sleep(time.Second)
+
 	setting.PreFix = ""
 	setting.Module = "ModuleB"
-	cbb := easyCon.AdapterCallBack{
-		OnReqRec:          onReqB,
-		OnLogRec:          onLogB,
-		OnNoticeRec:       onNoticeB,
-		OnRetainNoticeRec: onRetainNoticeB,
-		//OnLinked:          nil,
-		//OnExiting:         nil,
-		//OnGetVersion:      nil,
-	}
-	modB := easyCon.NewMqttAdapter(setting, cbb)
-	_ = modA.SendNotice("Notice", []byte("I am ModuleA Notice"))
+	setting.OnLog = onLogB
+	setting.OnReq = onReqB
+	setting.OnNotice = onNoticeB
+	setting.OnRetainNotice = onRetainNoticeB
+	modB := easyCon.NewMqttAdapter(setting)
+	_ = modA.SendNotice("Notice", "I am ModuleA Notice")
 	time.Sleep(time.Second)
-	_ = modA.SendRetainNotice("RetainNotice", []byte("I am ModuleA RetainNotice"))
+	_ = modA.SendRetainNotice("RetainNotice", "I am ModuleA RetainNotice")
 	time.Sleep(time.Second)
-	_ = modA.CleanRetainNotice("RetainNotice")
+	_ = modA.CleanRetainNotice()
 
 	time.Sleep(time.Second)
 	modA.Debug("I am ModuleA Debug")
 	time.Sleep(time.Second)
 	for i := 0; i < 10; i++ {
-		res := modB.Req("ModuleA", "Who are you", []byte(""))
+		res := modB.Req("ModuleA", "Who are you", "")
 		fmt.Println(res)
 		time.Sleep(time.Second)
 	}
@@ -180,10 +154,10 @@ func onLogA(log easyCon.PackLog) {
 func onLogB(log easyCon.PackLog) {
 	fmt.Println(time.Now().Format("15:04:05.000"), log, "B")
 }
-func onReqB(_ easyCon.PackReq) (easyCon.EResp, []byte) {
-	return easyCon.ERespSuccess, []byte("I'm ModuleB")
+func onReqB(_ easyCon.PackReq) (easyCon.EResp, any) {
+	return easyCon.ERespSuccess, "I'm ModuleB"
 }
 
-func onReqA(_ easyCon.PackReq) (easyCon.EResp, []byte) {
-	return easyCon.ERespSuccess, []byte("I'm ModuleA")
+func onReqA(_ easyCon.PackReq) (easyCon.EResp, any) {
+	return easyCon.ERespSuccess, "I'm ModuleA"
 }
