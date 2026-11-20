@@ -136,7 +136,7 @@ func NewSetting(module string, addr string, onReq ReqHandler, onStatusChanged St
 		SaveErrorLog:      false,
 		LogMode:           ELogModeConsole,
 		PreFix:            "",
-		ChannelBufferSize: 100, // 默认缓冲区大小
+		ChannelBufferSize: 100,         // 默认缓冲区大小
 		ConnectRetryDelay: time.Second, // 默认重试延迟
 	}
 }

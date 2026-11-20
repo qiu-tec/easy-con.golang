@@ -580,18 +580,19 @@ func (adapter *mqttAdapter) sendLog(pack PackLog) {
 			fmt.Printf("[%s][%s][Error]: %s\r\n", time.Now().Format("2006-01-02 15:04:05.000"), adapter.setting.Module, err.Error())
 			return
 		}
-		token := adapter.client.Publish(adapter.setting.PreFix+LogTopic, 0, false, js)
-		if !token.WaitTimeout(adapter.setting.TimeOut) {
-			// 注意：WaitTimeout 超时时 paho 不会给 token 设置 error，Error() 可能为 nil，
-			// 不能直接调用 token.Error().Error()，否则会空指针 panic
-			fmt.Printf("[%s][%s][Timeout]: log publish timeout cfg timeout=%d\r\n",
-				time.Now().Format("2006-01-02 15:04:05.000"), adapter.setting.Module, adapter.setting.TimeOut)
-			return
-		}
-		if token.Error() != nil {
-			fmt.Printf("[%s][%s][Error]: %s\r\n", time.Now().Format("2006-01-02 15:04:05.000"), adapter.setting.Module, token.Error().Error())
-			return
-		}
+		adapter.client.Publish(adapter.setting.PreFix+LogTopic, 0, false, js)
+		//token := adapter.client.Publish(adapter.setting.PreFix+LogTopic, 0, false, js)
+		//if !token.WaitTimeout(adapter.setting.LogTimeOut) {
+		//	// 注意：WaitTimeout 超时时 paho 不会给 token 设置 error，Error() 可能为 nil，
+		//	// 不能直接调用 token.Error().Error()，否则会空指针 panic
+		//	fmt.Printf("[%s][%s][Timeout]: log publish timeout cfg timeout=%d\r\n",
+		//		time.Now().Format("2006-01-02 15:04:05.000"), adapter.setting.Module, adapter.setting.LogTimeOut)
+		//	return
+		//}
+		//if token.Error() != nil {
+		//	fmt.Printf("[%s][%s][Error]: %s\r\n", time.Now().Format("2006-01-02 15:04:05.000"), adapter.setting.Module, token.Error().Error())
+		//	return
+		//}
 	}
 }
 
