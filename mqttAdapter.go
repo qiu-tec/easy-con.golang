@@ -13,6 +13,7 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -29,7 +30,7 @@ type mqttAdapter struct {
 	logChan          chan mqtt.Message
 	options          *mqtt.ClientOptions
 	wg               *sync.WaitGroup
-	isLinked         bool
+	isLinked         atomic.Bool
 }
 
 func NewMqttAdapter(setting Setting) IAdapter {
@@ -62,9 +63,10 @@ func newMqttAdapterInner(setting Setting, afterLink func(client mqtt.Client)) *m
 		AddBroker(setting.Addr).
 		SetUsername(setting.UID).
 		SetPassword(setting.PWD).
-		SetAutoReconnect(true)
+		SetAutoReconnect(true).
+		SetWriteTimeout(setting.TimeOut) // D5 修复：未设置时 paho Publish 内部走 30s time.After，定时器堆积
 	o.OnConnect = func(client mqtt.Client) {
-		adapter.isLinked = true
+		adapter.isLinked.Store(true)
 		if adapter.setting.StatusChanged != nil {
 			adapter.setting.StatusChanged(EStatusLinked)
 		}
@@ -96,7 +98,7 @@ func newMqttAdapterInner(setting Setting, afterLink func(client mqtt.Client)) *m
 	}
 
 	o.OnConnectionLost = func(client mqtt.Client, err error) {
-		adapter.isLinked = false
+		adapter.isLinked.Store(false)
 		if adapter.setting.StatusChanged != nil {
 			adapter.setting.StatusChanged(EStatusLinkLost)
 		}
@@ -163,13 +165,18 @@ func (adapter *mqttAdapter) Reset() {
 
 // Req Send Request and wait response
 func (adapter *mqttAdapter) Req(module, route string, params any) PackResp {
-	if !adapter.isLinked {
+	if !adapter.isLinked.Load() {
 		return PackResp{
 			RespCode: ERespUnLinked,
 		}
 	}
-	pack := newReqPack(adapter.setting.Module, module, route, params)
+	// 每次尝试生成新的 pack.Id（getReqId 全局自增，Id 本就是「每次请求唯一」的语义）：
+	// 1. 对端可据此区分不同尝试，为幂等去重提供依据
+	// 2. respDict 注册不会互相覆盖，避免通道泄漏与响应张冠李戴
+	var lastPack PackReq
 	for retry := adapter.setting.ReTry; retry >= 0; retry-- {
+		pack := newReqPack(adapter.setting.Module, module, route, params)
+		lastPack = pack
 		resp := adapter.reqInner(pack)
 		switch resp.RespCode {
 		case ERespTimeout:
@@ -179,7 +186,7 @@ func (adapter *mqttAdapter) Req(module, route string, params any) PackResp {
 		}
 	}
 	p := PackResp{
-		PackReq:  pack,
+		PackReq:  lastPack,
 		RespTime: "",
 		RespCode: ERespTimeout,
 		Error:    "Req timeout",
@@ -203,7 +210,7 @@ func (adapter *mqttAdapter) SendNotice(route string, content any) error {
 
 // sendNoticeInner Send Notice inner
 func (adapter *mqttAdapter) sendNoticeInner(route string, isRetain bool, content any) error {
-	if !adapter.isLinked {
+	if !adapter.isLinked.Load() {
 		return errors.New("adapter is not linked")
 	}
 	var pack PackNotice
@@ -264,6 +271,19 @@ func (adapter *mqttAdapter) reqInner(pack PackReq) PackResp {
 			Error:    err.Error(),
 		}
 	}
+	// 先注册响应通道，再发布请求，消除「响应早于注册导致响应被静默丢弃」的竞态窗口
+	// 通道带 1 缓冲：onResp 投递永不阻塞，避免持 RLock 阻塞导致适配器僵死
+	respChan := make(chan PackResp, 1)
+	adapter.mu.Lock()
+	adapter.respDict[pack.Id] = respChan
+	adapter.mu.Unlock()
+	// 无论成功/超时/错误，统一从字典移除，避免分支遗漏导致字典泄漏
+	defer func() {
+		adapter.mu.Lock()
+		delete(adapter.respDict, pack.Id)
+		adapter.mu.Unlock()
+	}()
+
 	pre := adapter.setting.PreFix
 	token := adapter.client.Publish(buildReqTopic(pre+pack.To), 0, false, raw)
 	now := time.Now()
@@ -280,20 +300,14 @@ func (adapter *mqttAdapter) reqInner(pack PackReq) PackResp {
 			RespCode: ERespUnLinked,
 		}
 	}
-	respChan := make(chan PackResp)
-	adapter.mu.Lock()
-	adapter.respDict[pack.Id] = respChan
-	adapter.mu.Unlock()
+	// D5 修复：time.After 无法提前释放，高吞吐下 30s/5s 存活定时器堆积数百 MB；
+	// 改为 NewTimer + Stop，收到响应立即释放
+	timer := time.NewTimer(adapter.setting.TimeOut)
+	defer timer.Stop()
 	select {
 	case resp := <-respChan:
-		adapter.mu.Lock()
-		delete(adapter.respDict, pack.Id)
-		adapter.mu.Unlock()
 		return resp
-	case <-time.After(adapter.setting.TimeOut):
-		adapter.mu.Lock()
-		delete(adapter.respDict, pack.Id)
-		adapter.mu.Unlock()
+	case <-timer.C:
 		return PackResp{
 			RespCode: ERespTimeout,
 		}
@@ -326,7 +340,11 @@ func (adapter *mqttAdapter) onResp(message mqtt.Message) {
 	adapter.mu.RLock()
 	c, b := adapter.respDict[pack.Id]
 	if b {
-		c <- *pack
+		// 非阻塞投递：缓冲已满时丢弃，避免持 RLock 阻塞导致字典写入全部卡死
+		select {
+		case c <- *pack:
+		default:
+		}
 	}
 	adapter.mu.RUnlock()
 }
@@ -460,7 +478,8 @@ func (adapter *mqttAdapter) onLog(msg mqtt.Message) {
 
 // loop main loop
 func (adapter *mqttAdapter) loop() {
-	adapter.wg.Add(1)
+	// wg.Add 由 link()/NewMqttAdapterWithClient 在启动本 goroutine 之前完成，
+	// 保证 Stop() 的 wg.Wait() 不会早于 Add 执行（Go 规范要求 Add 先于 Wait）
 	defer adapter.wg.Done()
 	if adapter.setting.EProtocol == EProtocolMQTTSync {
 		ch := make(chan struct{})
@@ -513,6 +532,7 @@ func (adapter *mqttAdapter) loop() {
 }
 
 func (adapter *mqttAdapter) link() {
+	adapter.wg.Add(1) // 在启动 goroutine 前 Add，保证 Stop() 的 Wait 语义正确
 	go adapter.loop()
 	adapter.client = mqtt.NewClient(adapter.options)
 ReLink:
@@ -546,7 +566,8 @@ func NewMqttAdapterWithClient(setting Setting, client mqtt.Client) IAdapter {
 		stopChan:         make(chan struct{}),
 		wg:               &sync.WaitGroup{},
 	}
-	adapter.isLinked = true
+	adapter.isLinked.Store(true)
+	adapter.wg.Add(1)
 	go adapter.loop()
 
 	// 订阅逻辑与 OnConnect 回调保持一致
@@ -572,7 +593,7 @@ func (adapter *mqttAdapter) sendLog(pack PackLog) {
 	}
 	if adapter.setting.LogMode == ELogModeUpload || adapter.setting.LogMode == ELogModeAll {
 
-		if adapter.isLinked == false { //未连接 就不再继续尝试发包了
+		if adapter.isLinked.Load() == false { //未连接 就不再继续尝试发包了
 			return
 		}
 		js, err := json.Marshal(pack)
